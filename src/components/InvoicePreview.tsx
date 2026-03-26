@@ -295,11 +295,6 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
           <div className="mt-24 grid grid-cols-2 gap-12">
             <div className="space-y-6">
               <div className="text-xs text-zinc-400 italic">
-                {technician.legalStatus === 'auto-entrepreneur' ? (
-                  <p>Exonéré de TVA (Art. 191 du Code des Taxes sur le Chiffre d'Affaires).</p>
-                ) : (
-                  <p>Assujetti à la TVA.</p>
-                )}
                 {invoice.notes && <p className="mt-2">Notes: {invoice.notes}</p>}
                 {technician.bankAccount && (
                   <div className="mt-4 p-3 rounded-xl border border-zinc-100 bg-zinc-50/50 not-italic">

@@ -249,11 +249,6 @@ export const generateInvoicePDF = async (invoice: Invoice, client: Client, techn
       doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
       
       let noteText = invoice.notes || '';
-      if (technician.legalStatus === 'auto-entrepreneur') {
-        noteText = `Exonéré de TVA (Art. 191 du Code des Taxes sur le Chiffre d'Affaires).\n${noteText}`;
-      } else {
-        noteText = `Assujetti à la TVA.\n${noteText}`;
-      }
       
       const splitNotes = doc.splitTextToSize(noteText, pageWidth / 2 - margin);
       doc.text(splitNotes, margin, finalY + 7);

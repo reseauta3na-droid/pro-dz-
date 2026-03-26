@@ -6,9 +6,10 @@ import { Button } from './ui/Button';
 
 interface OnboardingProps {
   onNext: () => void;
+  onLogin: () => void;
 }
 
-export const Onboarding: React.FC<OnboardingProps> = ({ onNext }) => {
+export const Onboarding: React.FC<OnboardingProps> = ({ onNext, onLogin }) => {
   const features = [
     {
       icon: <FileText className="h-6 w-6 text-emerald-600" />,
@@ -85,12 +86,18 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onNext }) => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
-          className="flex justify-center pt-8"
+          className="flex flex-col items-center space-y-4 pt-8"
         >
-          <Button onClick={onNext} size="lg" className="px-12 py-6 text-lg rounded-full">
+          <Button onClick={onNext} size="lg" className="w-full sm:w-auto px-12 py-6 text-lg rounded-full">
             Commencer la configuration
             <ArrowRight className="ml-2 h-6 w-6" />
           </Button>
+          <button 
+            onClick={onLogin}
+            className="text-sm font-bold text-zinc-400 hover:text-emerald-600 transition-colors uppercase tracking-widest"
+          >
+            Déjà un compte ? Se connecter
+          </button>
         </motion.div>
       </motion.div>
     </div>

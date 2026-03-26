@@ -8,10 +8,11 @@ import { Technician } from '../types';
 
 interface ProfileSetupProps {
   onSave: (profile: Technician) => void;
+  onLogin: () => void;
   initialEmail: string;
 }
 
-export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onSave, initialEmail }) => {
+export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onSave, onLogin, initialEmail }) => {
   const [formData, setFormData] = React.useState<Technician>({
     id: '',
     firstName: '',
@@ -194,6 +195,15 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onSave, initialEmail
               <Save className="mr-2 h-6 w-6" />
               Finaliser le profil
             </Button>
+            <div className="pt-4 text-center">
+              <button 
+                type="button"
+                onClick={onLogin}
+                className="text-xs font-bold text-zinc-400 hover:text-emerald-600 transition-colors uppercase tracking-widest"
+              >
+                Déjà un compte ? Se connecter pour restaurer
+              </button>
+            </div>
           </form>
         </Card>
       </motion.div>

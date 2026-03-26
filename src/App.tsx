@@ -177,7 +177,7 @@ export default function App() {
         setAppState('locked');
       }
     } else {
-      setAppState('setup-profile');
+      setAppState('onboarding');
     }
 
     if (savedInvoices) setInvoices(JSON.parse(savedInvoices));
@@ -343,11 +343,11 @@ export default function App() {
   };
 
   const handleSaveProfile = async (newProfile: Technician) => {
-    if (!user) return;
-    const updatedProfile = { ...profile, ...newProfile, id: user.uid };
+    const userId = user?.uid || 'local-user';
+    const updatedProfile = { ...profile, ...newProfile, id: userId };
     setProfile(updatedProfile as UserProfile);
     
-    if (firebase.db) {
+    if (user && firebase.db) {
       try {
         await setDoc(doc(firebase.db, 'users', user.uid), updatedProfile);
       } catch (err) {
@@ -398,30 +398,34 @@ export default function App() {
   };
 
   const handleSaveExpense = async (expenseData: any) => {
-    if (!user || !firebase.db) return;
+    const userId = user?.uid || 'local-user';
 
     if (editingExpense?.id) {
       const updatedExpenses = expenses.map(exp => exp.id === editingExpense.id ? { ...exp, ...expenseData } as Expense : exp);
       setExpenses(updatedExpenses);
-      try {
-        const expenseToSave = updatedExpenses.find(e => e.id === editingExpense.id);
-        if (expenseToSave) {
-          await setDoc(doc(firebase.db, 'users', user.uid, 'expenses', editingExpense.id), expenseToSave);
+      if (user && firebase.db) {
+        try {
+          const expenseToSave = updatedExpenses.find(e => e.id === editingExpense.id);
+          if (expenseToSave) {
+            await setDoc(doc(firebase.db, 'users', user.uid, 'expenses', editingExpense.id), expenseToSave);
+          }
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/expenses/${editingExpense.id}`, firebase.auth);
         }
-      } catch (err) {
-        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/expenses/${editingExpense.id}`, firebase.auth);
       }
     } else {
       const newExpense = {
         ...expenseData,
         id: Math.random().toString(36).substr(2, 9),
-        technicianId: user.uid,
+        technicianId: userId,
       } as Expense;
       setExpenses([newExpense, ...expenses]);
-      try {
-        await setDoc(doc(firebase.db, 'users', user.uid, 'expenses', newExpense.id), newExpense);
-      } catch (err) {
-        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/expenses/${newExpense.id}`, firebase.auth);
+      if (user && firebase.db) {
+        try {
+          await setDoc(doc(firebase.db, 'users', user.uid, 'expenses', newExpense.id), newExpense);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/expenses/${newExpense.id}`, firebase.auth);
+        }
       }
     }
     setIsExpenseModalOpen(false);
@@ -609,10 +613,10 @@ export default function App() {
   }
 
   if (appState === 'onboarding') {
-    return <Onboarding onNext={() => setAppState('setup-profile')} />;
+    return <Onboarding onNext={() => setAppState('setup-profile')} onLogin={loginWithGoogle} />;
   }
 
-  if (appState === 'setup-profile') return <ProfileSetup onSave={handleSaveProfile} initialEmail="" />;
+  if (appState === 'setup-profile') return <ProfileSetup onSave={handleSaveProfile} onLogin={loginWithGoogle} initialEmail="" />;
   if (appState === 'setup-pin') return <PinSetup onSave={handleSavePin} />;
   if (appState === 'locked' && profile?.pinCode) return <PinLock correctPin={profile.pinCode} onSuccess={() => setAppState('ready')} />;
 
