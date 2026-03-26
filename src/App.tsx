@@ -1,4 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, Trash2, Calculator, Calendar, User as UserIcon, Briefcase, FileText, CreditCard, Bell } from 'lucide-react';
+import { Card } from './components/ui/Card';
+import { Input } from './components/ui/Input';
+import { Button } from './components/ui/Button';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { InvoiceList } from './components/InvoiceList';
@@ -17,6 +21,7 @@ import { StampPad } from './components/StampPad';
 import { generateInvoicePDF } from './utils/pdfGenerator';
 import { formatCurrency } from './utils/calculations';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { Onboarding } from './components/Onboarding';
 import { Invoice, Client, Technician, UserProfile, Expense } from './types';
 import { ExpenseList } from './components/ExpenseList';
 import { ExpenseForm } from './components/ExpenseForm';
@@ -25,7 +30,7 @@ import { getFirebase, handleFirestoreError, OperationType, loginWithGoogle, logo
 import { onAuthStateChanged, User, Auth } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, onSnapshot, query, Firestore, deleteDoc } from 'firebase/firestore';
 
-type AppState = 'loading' | 'setup-profile' | 'setup-pin' | 'locked' | 'ready';
+type AppState = 'loading' | 'onboarding' | 'setup-profile' | 'setup-pin' | 'locked' | 'ready';
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>('loading');
@@ -68,6 +73,7 @@ export default function App() {
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [isStampModalOpen, setIsStampModalOpen] = useState(false);
+  const [showNotification, setShowNotification] = useState<{ title: string, message: string } | null>(null);
   
   const [editingInvoice, setEditingInvoice] = useState<Partial<Invoice> | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
@@ -96,6 +102,13 @@ export default function App() {
       if (docSnap.exists()) {
         const cloudProfile = docSnap.data() as UserProfile;
         setProfile(prev => ({ ...prev, ...cloudProfile }));
+        if (cloudProfile.pinCode) {
+          setAppState('locked');
+        } else {
+          setAppState('ready');
+        }
+      } else {
+        setAppState('onboarding');
       }
     }).catch(err => handleFirestoreError(err, OperationType.GET, `users/${user.uid}`, firebase.auth));
 
@@ -227,6 +240,27 @@ export default function App() {
       annualTva
     };
   }, [invoices, expenses]);
+
+  // Check for important dates and show notifications
+  useEffect(() => {
+    if (appState === 'ready' && profile) {
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      
+      // IFU Deadline: June 30th
+      const ifuDeadline = new Date(currentYear, 5, 30); // Month is 0-indexed, so 5 is June
+      const casnosDeadline = new Date(currentYear, 5, 30);
+      
+      const diffIfu = Math.ceil((ifuDeadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      
+      if (diffIfu > 0 && diffIfu <= 15) {
+        setShowNotification({
+          title: "Échéance Fiscale Proche",
+          message: `Il reste ${diffIfu} jours pour déclarer et payer votre IFU et CASNOS (avant le 30 Juin).`
+        });
+      }
+    }
+  }, [appState, profile]);
 
   // Handlers
   const handleUpdateInvoiceStatus = async (invoiceId: string, status: 'paid' | 'unpaid' | 'partial', paidAmount?: number) => {
@@ -563,7 +597,21 @@ export default function App() {
     }
   };
 
-  if (appState === 'loading') return <div className="flex h-screen items-center justify-center bg-zinc-50">Chargement...</div>;
+  if (appState === 'loading') {
+    return (
+      <div className="flex h-screen items-center justify-center bg-zinc-50">
+        <div className="text-center space-y-4">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent mx-auto"></div>
+          <p className="text-sm font-medium text-zinc-500">Chargement de Tech DZ Pro...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (appState === 'onboarding') {
+    return <Onboarding onNext={() => setAppState('setup-profile')} />;
+  }
+
   if (appState === 'setup-profile') return <ProfileSetup onSave={handleSaveProfile} initialEmail="" />;
   if (appState === 'setup-pin') return <PinSetup onSave={handleSavePin} />;
   if (appState === 'locked' && profile?.pinCode) return <PinLock correctPin={profile.pinCode} onSuccess={() => setAppState('ready')} />;
@@ -688,6 +736,27 @@ export default function App() {
         )}
 
         {/* Modals */}
+        <Modal
+          isOpen={!!showNotification}
+          onClose={() => setShowNotification(null)}
+          title={showNotification?.title || ""}
+        >
+          <div className="p-6 space-y-4">
+            <div className="flex items-center space-x-4 text-amber-600">
+              <Bell className="h-8 w-8" />
+              <p className="text-lg font-bold">Rappel Important</p>
+            </div>
+            <p className="text-zinc-600 leading-relaxed">
+              {showNotification?.message}
+            </p>
+            <div className="pt-4">
+              <Button onClick={() => setShowNotification(null)} className="w-full">
+                J'ai compris
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
         <Modal
           isOpen={isInvoiceModalOpen}
           onClose={() => setIsInvoiceModalOpen(false)}
