@@ -2,7 +2,7 @@ import { InvoiceItem, Currency } from '../types';
 
 export const DAYS_PER_WEEK = 6;
 
-export function calculateInvoiceTotals(items: InvoiceItem[], taxRate: number = 0, tvaRate: number = 0, isTvaNegative: boolean = false) {
+export function calculateInvoiceTotals(items: InvoiceItem[], taxRate: number = 0, tvaRate: number = 0) {
   let totalDays = 0;
   let subTotal = 0;
 
@@ -18,7 +18,7 @@ export function calculateInvoiceTotals(items: InvoiceItem[], taxRate: number = 0
 
   const taxAmount = subTotal * taxRate;
   const tvaAmount = subTotal * tvaRate;
-  const total = subTotal + taxAmount + (isTvaNegative ? -tvaAmount : tvaAmount);
+  const total = subTotal + taxAmount + tvaAmount;
 
   return {
     totalDays,

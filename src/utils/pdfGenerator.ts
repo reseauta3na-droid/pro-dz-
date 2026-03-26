@@ -195,13 +195,8 @@ export const generateInvoicePDF = async (invoice: Invoice, client: Client, techn
     if (invoice.tvaRate > 0) {
       doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
       doc.text(`TVA (${invoice.tvaRate * 100}%):`, totalsX, currentTotalsY);
-      if (invoice.isTvaNegative) {
-        doc.setTextColor(220, 38, 38);
-      } else {
-        doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
-      }
-      const tvaPrefix = invoice.isTvaNegative ? '-' : '+';
-      doc.text(`${tvaPrefix}${formatCurrency(invoice.tvaAmount)}`, pageWidth - margin, currentTotalsY, { align: 'right' });
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+      doc.text(`+${formatCurrency(invoice.tvaAmount)}`, pageWidth - margin, currentTotalsY, { align: 'right' });
       currentTotalsY += 7;
     }
 

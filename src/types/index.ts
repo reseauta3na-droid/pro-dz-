@@ -68,7 +68,6 @@ export interface Invoice {
   currency: Currency;
   taxRate: number; // IFU 0.5%
   tvaRate: number; // TVA (e.g. 19% or 9%)
-  isTvaNegative?: boolean; // If TVA should be subtracted (withholding)
   paidAmount: number;
   showSignature: boolean;
   showStamp: boolean;

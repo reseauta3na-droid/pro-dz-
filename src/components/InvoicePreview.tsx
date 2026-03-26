@@ -257,9 +257,7 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                 {invoice.tvaRate > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-zinc-500">TVA ({invoice.tvaRate * 100}%)</span>
-                    <span className={`font-bold ${invoice.isTvaNegative ? 'text-red-600' : 'text-emerald-600'}`}>
-                      {invoice.isTvaNegative ? '-' : '+'}{formatCurrency(invoice.tvaAmount, invoice.currency)}
-                    </span>
+                    <span className="font-bold text-emerald-600">+{formatCurrency(invoice.tvaAmount, invoice.currency)}</span>
                   </div>
                 )}
                 {invoice.taxRate === 0 && invoice.tvaRate === 0 && (

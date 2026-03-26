@@ -32,14 +32,13 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, technician, i
     showStamp: initialData?.showStamp ?? true,
     taxRate: initialData?.taxRate ?? 0.005,
     tvaRate: initialData?.tvaRate ?? 0,
-    isTvaNegative: initialData?.isTvaNegative ?? false,
     notes: initialData?.notes || '',
   });
 
   // Auto-set TVA to 0 if auto-entrepreneur
   React.useEffect(() => {
     if (technician.legalStatus === 'auto-entrepreneur') {
-      setFormData(prev => ({ ...prev, tvaRate: 0, isTvaNegative: false }));
+      setFormData(prev => ({ ...prev, tvaRate: 0 }));
     }
   }, [technician.legalStatus]);
 
@@ -57,7 +56,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, technician, i
     }
   }, [formData.type, initialData?.invoiceNumber]);
 
-  const totals = calculateInvoiceTotals(formData.items, formData.taxRate, formData.tvaRate, formData.isTvaNegative);
+  const totals = calculateInvoiceTotals(formData.items, formData.taxRate, formData.tvaRate);
 
   const addItem = () => {
     setFormData({
@@ -438,21 +437,9 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, technician, i
                         className="w-16 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-bold outline-none focus:border-emerald-500"
                       />
                     </div>
-                    <span className={`font-bold ${formData.isTvaNegative ? 'text-red-600' : 'text-emerald-600'}`}>
-                      {formData.isTvaNegative ? '-' : '+'}{formatCurrency(totals.tvaAmount, formData.currency)}
+                    <span className="font-bold text-emerald-600">
+                      +{formatCurrency(totals.tvaAmount, formData.currency)}
                     </span>
-                  </div>
-                  <div className="flex items-center space-x-2 px-1">
-                    <input
-                      type="checkbox"
-                      id="is-tva-negative"
-                      checked={formData.isTvaNegative}
-                      onChange={(e) => setFormData({ ...formData, isTvaNegative: e.target.checked })}
-                      className="h-3 w-3 rounded border-zinc-300 text-red-600 focus:ring-red-500"
-                    />
-                    <label htmlFor="is-tva-negative" className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 cursor-pointer">
-                      TVA Négative (Déduction)
-                    </label>
                   </div>
                 </div>
               )}

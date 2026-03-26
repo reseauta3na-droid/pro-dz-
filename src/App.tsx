@@ -226,7 +226,7 @@ export default function App() {
       .reduce((acc, inv) => acc + (inv.taxAmount || 0), 0);
     const annualTva = invoices
       .filter(inv => new Date(inv.date).getFullYear() === currentYear)
-      .reduce((acc, inv) => acc + (inv.isTvaNegative ? -(inv.tvaAmount || 0) : (inv.tvaAmount || 0)), 0);
+      .reduce((acc, inv) => acc + (inv.tvaAmount || 0), 0);
 
     return {
       totalEarned,
