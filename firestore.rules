@@ -2,6 +2,65 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /users/{userId}
+    // Document ID: userId (Firebase Auth UID)
+    // Fields:
+    //   - id: string (required)
+    //   - firstName: string (required, 1-50 chars)
+    //   - lastName: string (required, 1-50 chars)
+    //   - email: string (required, email format)
+    //   - nif: string (required, 1-50 chars)
+    //   - address: string (optional, max 200 chars)
+    //   - phone: string (optional, max 20 chars)
+    //   - socialSecurity: string (optional, max 50 chars)
+    //   - signatureUrl: string (optional, URL format)
+    //   - stampUrl: string (optional, URL format)
+    //   - pinCode: string (optional, max 10 chars)
+    //
+    // Collection: /users/{userId}/clients/{clientId}
+    // Document ID: clientId (random string)
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required, 1-100 chars)
+    //   - address: string (optional, max 200 chars)
+    //   - phone: string (optional, max 20 chars)
+    //   - email: string (optional, email format)
+    //   - nif: string (optional, max 50 chars)
+    //   - nis: string (optional, max 50 chars)
+    //
+    // Collection: /users/{userId}/invoices/{invoiceId}
+    // Document ID: invoiceId (random string)
+    // Fields:
+    //   - id: string (required)
+    //   - invoiceNumber: string (required, 1-50 chars)
+    //   - date: string (required, ISO 8601 format)
+    //   - projectName: string (required, 1-100 chars)
+    //   - clientId: string (required)
+    //   - technicianId: string (required, must match userId)
+    //   - status: string (required, enum: ['paid', 'unpaid'])
+    //   - total: number (required, >= 0)
+    //   - taxRate: number (optional)
+    //   - totalDays: number (optional)
+    //   - subTotal: number (optional)
+    //   - notes: string (optional, max 1000 chars)
+    //
+    // Collection: /users/{userId}/expenses/{expenseId}
+    // Document ID: expenseId (random string)
+    // Fields:
+    //   - id: string (required)
+    //   - date: string (required, ISO 8601 format)
+    //   - description: string (required, 1-200 chars)
+    //   - category: string (required, enum: ['equipment', 'transport', 'software', 'fiscal', 'other'])
+    //   - amount: number (required, >= 0)
+    //   - currency: string (required, enum: ['DZD', 'EUR', 'USD'])
+    //   - technicianId: string (required, must match userId)
+    //
+    // ===============================================================
+
+    // ===============================================================
     // Helper Functions
     // ===============================================================
     function isAuthenticated() {
@@ -20,65 +79,134 @@ service cloud.firestore {
       return request.resource.data.keys().hasOnly(fields);
     }
 
-    function isValidString(field, minLen, maxLen) {
-      return request.resource.data[field] is string &&
-             request.resource.data[field].size() >= minLen &&
-             request.resource.data[field].size() <= maxLen;
-    }
-
-    function isValidOptionalString(field, maxLen) {
-      return !(field in request.resource.data) ||
-             (request.resource.data[field] is string && request.resource.data[field].size() <= maxLen);
-    }
-
     function isValidEmail(email) {
-      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+      return email is string && (email.size() == 0 || email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"));
+    }
+
+    function isEmailVerified() {
+      return request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "reseauta3na@gmail.com" && isEmailVerified()));
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}(T\\d{2}:\\d{2}:\\d{2}.*Z?)?$");
     }
 
     // ===============================================================
     // Domain Validators
     // ===============================================================
     function isValidUserProfile(data) {
-      return hasRequiredFields(['id', 'firstName', 'lastName', 'email', 'nif']) &&
+      return hasRequiredFields(['id', 'firstName', 'lastName', 'email', 'nif', 'legalStatus']) &&
              data.id == request.auth.uid &&
-             data.firstName is string && data.firstName.size() > 0 && data.firstName.size() < 50 &&
-             data.lastName is string && data.lastName.size() > 0 && data.lastName.size() < 50 &&
+             data.email == request.auth.token.email &&
+             data.firstName is string && data.firstName.size() > 0 && data.firstName.size() <= 50 &&
+             data.lastName is string && data.lastName.size() > 0 && data.lastName.size() <= 50 &&
              isValidEmail(data.email) &&
-             data.nif is string && data.nif.size() > 0 && data.nif.size() < 50;
+             data.nif is string && data.nif.size() > 0 && data.nif.size() <= 50 &&
+             data.legalStatus in ['auto-entrepreneur', 'registre-commerce'] &&
+             (!( 'fonction' in data ) || (data.fonction is string && data.fonction.size() <= 100)) &&
+             (!( 'address' in data ) || (data.address is string && data.address.size() <= 200)) &&
+             (!( 'phone' in data ) || (data.phone is string && data.phone.size() <= 20)) &&
+             (!( 'registreCommerce' in data ) || (data.registreCommerce is string && data.registreCommerce.size() <= 50)) &&
+             (!( 'carteAutoentrepreneur' in data ) || (data.carteAutoentrepreneur is string && data.carteAutoentrepreneur.size() <= 50)) &&
+             (!( 'socialSecurity' in data ) || (data.socialSecurity is string && data.socialSecurity.size() <= 50)) &&
+             (!( 'bankAccount' in data ) || (data.bankAccount is string && data.bankAccount.size() <= 100)) &&
+             (!( 'signatureUrl' in data ) || isValidUrl(data.signatureUrl)) &&
+             (!( 'stampUrl' in data ) || isValidUrl(data.stampUrl)) &&
+             (!( 'pinCode' in data ) || (data.pinCode is string && data.pinCode.size() <= 10)) &&
+             (!( 'defaultCurrency' in data ) || (data.defaultCurrency in ['DZD', 'EUR', 'USD'])) &&
+             (!( 'role' in data ) || (data.role in ['admin', 'user']));
     }
 
     function isValidClient(data) {
       return hasRequiredFields(['id', 'name']) &&
-             data.name is string && data.name.size() > 0 && data.name.size() < 100;
+             data.id is string && data.id.size() > 0 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             (!( 'email' in data ) || isValidEmail(data.email)) &&
+             (!( 'address' in data ) || (data.address is string && data.address.size() <= 200)) &&
+             (!( 'phone' in data ) || (data.phone is string && data.phone.size() <= 20)) &&
+             (!( 'nif' in data ) || (data.nif is string && data.nif.size() <= 50)) &&
+             (!( 'nis' in data ) || (data.nis is string && data.nis.size() <= 50)) &&
+             (!( 'bankAccount' in data ) || (data.bankAccount is string && data.bankAccount.size() <= 100));
     }
 
     function isValidInvoice(data) {
-      return hasRequiredFields(['id', 'invoiceNumber', 'date', 'projectName', 'clientId', 'technicianId', 'status', 'total']) &&
-             data.status in ['paid', 'unpaid'] &&
-             data.total is number && data.total >= 0;
+      return hasRequiredFields(['id', 'type', 'invoiceNumber', 'date', 'projectName', 'clientId', 'technicianId', 'status', 'total', 'paidAmount', 'items', 'showSignature', 'showStamp', 'taxRate', 'tvaRate', 'isTvaNegative', 'totalDays', 'subTotal', 'currency']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.type in ['invoice', 'quote'] &&
+             data.invoiceNumber is string && data.invoiceNumber.size() > 0 && data.invoiceNumber.size() <= 50 &&
+             isValidDateString(data.date) &&
+             data.projectName is string && data.projectName.size() > 0 && data.projectName.size() <= 100 &&
+             data.technicianId == request.auth.uid &&
+             data.status in ['paid', 'unpaid', 'partial'] &&
+             data.total is number && data.total >= 0 &&
+             data.paidAmount is number && data.paidAmount >= 0 &&
+             data.items is list &&
+             data.showSignature is bool &&
+             data.showStamp is bool &&
+             data.taxRate is number &&
+             data.tvaRate is number &&
+             data.isTvaNegative is bool &&
+             data.totalDays is number &&
+             data.subTotal is number &&
+             (!( 'notes' in data ) || (data.notes is string && data.notes.size() <= 1000)) &&
+             (!( 'taxAmount' in data ) || (data.taxAmount is number)) &&
+             (!( 'tvaAmount' in data ) || (data.tvaAmount is number)) &&
+             (!( 'currency' in data ) || (data.currency in ['DZD', 'EUR', 'USD']));
+    }
+
+    function isValidExpense(data) {
+      return hasRequiredFields(['id', 'date', 'description', 'category', 'amount', 'currency', 'technicianId']) &&
+             data.id is string && data.id.size() > 0 &&
+             isValidDateString(data.date) &&
+             data.description is string && data.description.size() > 0 && data.description.size() <= 200 &&
+             data.category in ['equipment', 'transport', 'software', 'fiscal', 'other'] &&
+             data.amount is number && data.amount >= 0 &&
+             data.currency in ['DZD', 'EUR', 'USD'] &&
+             data.technicianId == request.auth.uid;
     }
 
     // ===============================================================
     // Rules
     // ===============================================================
     match /users/{userId} {
-      allow read: if isOwner(userId);
-      allow create: if isOwner(userId) && isValidUserProfile(request.resource.data);
-      allow update: if isOwner(userId) && isValidUserProfile(request.resource.data);
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUserProfile(request.resource.data) && ((isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == 'user')) || isAdmin());
+      allow update: if isAuthenticated() && isValidUserProfile(request.resource.data) && ((isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)) || isAdmin());
 
       match /clients/{clientId} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) || isAdmin();
         allow create: if isOwner(userId) && isValidClient(request.resource.data);
         allow update: if isOwner(userId) && isValidClient(request.resource.data);
-        allow delete: if isOwner(userId);
+        allow delete: if isOwner(userId) || isAdmin();
       }
 
       match /invoices/{invoiceId} {
-        allow read: if isOwner(userId);
+        allow read: if isOwner(userId) || isAdmin();
         allow create: if isOwner(userId) && isValidInvoice(request.resource.data);
         allow update: if isOwner(userId) && isValidInvoice(request.resource.data);
-        allow delete: if isOwner(userId);
+        allow delete: if isOwner(userId) || isAdmin();
       }
+
+      match /expenses/{expenseId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidExpense(request.resource.data);
+        allow update: if isOwner(userId) && isValidExpense(request.resource.data);
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    match /heartbeat/{docId} {
+      allow read: if isAuthenticated();
     }
   }
 }

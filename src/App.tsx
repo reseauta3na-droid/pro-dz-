@@ -14,9 +14,16 @@ import { PinSetup } from './components/PinSetup';
 import { ProfileSetup } from './components/ProfileSetup';
 import { SignaturePad } from './components/SignaturePad';
 import { StampPad } from './components/StampPad';
+import { generateInvoicePDF } from './utils/pdfGenerator';
+import { formatCurrency } from './utils/calculations';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { Invoice, Client, Technician, UserProfile } from './types';
+import { Invoice, Client, Technician, UserProfile, Expense } from './types';
+import { ExpenseList } from './components/ExpenseList';
+import { ExpenseForm } from './components/ExpenseForm';
 import { startOfMonth, endOfMonth, format, isWithinInterval, subMonths } from 'date-fns';
+import { getFirebase, handleFirestoreError, OperationType, loginWithGoogle, logout, testConnection } from './lib/firebase';
+import { onAuthStateChanged, User, Auth } from 'firebase/auth';
+import { doc, getDoc, setDoc, collection, onSnapshot, query, Firestore, deleteDoc } from 'firebase/firestore';
 
 type AppState = 'loading' | 'setup-profile' | 'setup-pin' | 'locked' | 'ready';
 
@@ -26,10 +33,38 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [user, setUser] = useState<User | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [firebase, setFirebase] = useState<{ auth: Auth | null, db: Firestore | null }>({ auth: null, db: null });
+
+  // Monitor online status
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Initialize Firebase
+  useEffect(() => {
+    getFirebase().then(({ auth, db }) => {
+      setFirebase({ auth, db });
+      if (db) testConnection();
+    });
+  }, []);
   
   // Modal states
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [isStampModalOpen, setIsStampModalOpen] = useState(false);
@@ -37,7 +72,72 @@ export default function App() {
   const [editingInvoice, setEditingInvoice] = useState<Partial<Invoice> | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
   const [editingClient, setEditingClient] = useState<Partial<Client> | null>(null);
+  const [editingExpense, setEditingExpense] = useState<Partial<Expense> | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  // Firebase Auth Listener
+  useEffect(() => {
+    if (!firebase.auth) return;
+    const unsubscribe = onAuthStateChanged(firebase.auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, [firebase.auth]);
+
+  // Sync data from Firestore when user logs in
+  useEffect(() => {
+    if (!user || !firebase.db || !firebase.auth) return;
+
+    setIsSyncing(true);
+    const userDocRef = doc(firebase.db, 'users', user.uid);
+    
+    // Load profile
+    getDoc(userDocRef).then((docSnap) => {
+      if (docSnap.exists()) {
+        const cloudProfile = docSnap.data() as UserProfile;
+        setProfile(prev => ({ ...prev, ...cloudProfile }));
+      }
+    }).catch(err => handleFirestoreError(err, OperationType.GET, `users/${user.uid}`, firebase.auth));
+
+    // Listen for clients
+    const clientsQuery = query(collection(firebase.db, 'users', user.uid, 'clients'));
+    const unsubscribeClients = onSnapshot(clientsQuery, { includeMetadataChanges: true }, (snapshot) => {
+      const cloudClients = snapshot.docs.map(doc => doc.data() as Client);
+      if (cloudClients.length > 0) {
+        setClients(cloudClients);
+        localStorage.setItem('tech_dz_clients', JSON.stringify(cloudClients));
+      }
+      setIsSyncing(snapshot.metadata.hasPendingWrites);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/clients`, firebase.auth));
+
+    // Listen for invoices
+    const invoicesQuery = query(collection(firebase.db, 'users', user.uid, 'invoices'));
+    const unsubscribeInvoices = onSnapshot(invoicesQuery, { includeMetadataChanges: true }, (snapshot) => {
+      const cloudInvoices = snapshot.docs.map(doc => doc.data() as Invoice);
+      if (cloudInvoices.length > 0) {
+        setInvoices(cloudInvoices);
+        localStorage.setItem('tech_dz_invoices', JSON.stringify(cloudInvoices));
+      }
+      setIsSyncing(snapshot.metadata.hasPendingWrites);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/invoices`, firebase.auth));
+
+    // Listen for expenses
+    const expensesQuery = query(collection(firebase.db, 'users', user.uid, 'expenses'));
+    const unsubscribeExpenses = onSnapshot(expensesQuery, { includeMetadataChanges: true }, (snapshot) => {
+      const cloudExpenses = snapshot.docs.map(doc => doc.data() as Expense);
+      if (cloudExpenses.length > 0) {
+        setExpenses(cloudExpenses);
+        localStorage.setItem('tech_dz_expenses', JSON.stringify(cloudExpenses));
+      }
+      setIsSyncing(snapshot.metadata.hasPendingWrites);
+    }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/expenses`, firebase.auth));
+
+    return () => {
+      unsubscribeClients();
+      unsubscribeInvoices();
+      unsubscribeExpenses();
+    };
+  }, [user, firebase.db, firebase.auth]);
 
   // Load data from localStorage
   useEffect(() => {
@@ -99,47 +199,128 @@ export default function App() {
   const stats = useMemo(() => {
     const totalEarned = invoices.filter(i => i.status === 'paid').reduce((acc, i) => acc + i.total, 0);
     const paidCount = invoices.filter(i => i.status === 'paid').length;
-    const unpaidCount = invoices.filter(i => i.status === 'unpaid').length;
+    const unpaidCount = invoices.filter(i => i.status === 'unpaid' || i.status === 'partial').length;
+    const totalExpenses = expenses.reduce((acc, e) => acc + e.amount, 0);
+    const profit = totalEarned - totalExpenses;
 
     // Annual IFU calculation (0.5% of all invoices for the current year, paid or unpaid)
     const currentYear = new Date().getFullYear();
     const annualTotal = invoices
       .filter(inv => new Date(inv.date).getFullYear() === currentYear)
       .reduce((acc, inv) => acc + inv.total, 0);
-    const annualIfu = annualTotal * 0.005;
-
-    // Last 6 months data
-    const monthlyData = Array.from({ length: 6 }).map((_, i) => {
-      const date = subMonths(new Date(), 5 - i);
-      const monthName = format(date, 'MMM');
-      const start = startOfMonth(date);
-      const end = endOfMonth(date);
-
-      const amount = invoices
-        .filter(inv => {
-          const invDate = new Date(inv.date);
-          return isWithinInterval(invDate, { start, end }) && inv.status === 'paid';
-        })
-        .reduce((acc, inv) => acc + inv.total, 0);
-
-      return { month: monthName, amount };
-    });
+    const annualIfu = invoices
+      .filter(inv => new Date(inv.date).getFullYear() === currentYear)
+      .reduce((acc, inv) => acc + (inv.taxAmount || 0), 0);
+    const annualTva = invoices
+      .filter(inv => new Date(inv.date).getFullYear() === currentYear)
+      .reduce((acc, inv) => acc + (inv.isTvaNegative ? -(inv.tvaAmount || 0) : (inv.tvaAmount || 0)), 0);
 
     return {
       totalEarned,
+      totalExpenses,
+      profit,
       invoiceCount: invoices.length,
       paidCount,
       unpaidCount,
       annualTotal,
       annualIfu,
-      monthlyData
+      annualTva
     };
-  }, [invoices]);
+  }, [invoices, expenses]);
 
   // Handlers
-  const handleSaveProfile = (newProfile: Technician) => {
-    const updatedProfile = { ...profile, ...newProfile };
+  const handleUpdateInvoiceStatus = async (invoiceId: string, status: 'paid' | 'unpaid' | 'partial', paidAmount?: number) => {
+    const invoice = invoices.find(i => i.id === invoiceId);
+    if (!invoice) return;
+
+    const updatedInvoice = { 
+      ...invoice, 
+      status,
+      paidAmount: paidAmount !== undefined ? paidAmount : (status === 'paid' ? invoice.total : (status === 'unpaid' ? 0 : invoice.paidAmount))
+    };
+
+    setInvoices(invoices.map(i => i.id === invoiceId ? updatedInvoice : i));
+    if (viewingInvoice?.id === invoiceId) setViewingInvoice(updatedInvoice);
+
+    if (user && firebase.db) {
+      try {
+        await setDoc(doc(firebase.db, 'users', user.uid, 'invoices', invoiceId), updatedInvoice);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/invoices/${invoiceId}`, firebase.auth);
+      }
+    }
+  };
+
+  const handleDownloadInvoice = async (invoice: Invoice) => {
+    const client = clients.find(c => c.id === invoice.clientId);
+    if (client && profile) {
+      try {
+        await generateInvoicePDF(invoice, client, profile);
+      } catch (error) {
+        console.error('Error generating PDF:', error);
+        alert('Erreur lors de la génération du PDF.');
+      }
+    } else {
+      alert('Informations client ou technicien manquantes.');
+    }
+  };
+
+  const handleShareInvoice = (invoice: Invoice, method: 'whatsapp' | 'email') => {
+    const client = clients.find(c => c.id === invoice.clientId);
+    if (!client || !profile) return;
+
+    const docLabel = invoice.type === 'quote' ? 'Devis' : 'Facture';
+    const amount = formatCurrency(invoice.total);
+
+    if (method === 'whatsapp') {
+      const message = encodeURIComponent(
+        `Bonjour, voici votre ${docLabel.toLowerCase()} ${invoice.invoiceNumber} pour le projet ${invoice.projectName}.\n` +
+        `Montant Total: ${amount}\n` +
+        `Lien: ${window.location.href}`
+      );
+      window.open(`https://wa.me/?text=${message}`, '_blank');
+    } else {
+      const subject = encodeURIComponent(`${docLabel} ${invoice.invoiceNumber} - ${invoice.projectName}`);
+      const body = encodeURIComponent(
+        `Bonjour,\n\nVeuillez trouver ci-joint les détails de votre ${docLabel.toLowerCase()}.\n\n` +
+        `Numéro: ${invoice.invoiceNumber}\n` +
+        `Projet: ${invoice.projectName}\n` +
+        `Montant Total: ${amount}\n\n` +
+        `Cordialement,\n${profile.firstName} ${profile.lastName}`
+      );
+      window.location.href = `mailto:${client.email}?subject=${subject}&body=${body}`;
+    }
+  };
+
+  const handleLogout = async () => {
+    if (window.confirm('Voulez-vous vraiment vous déconnecter ?')) {
+      try {
+        await logout();
+        setUser(null);
+        setProfile(null);
+        setInvoices([]);
+        setClients([]);
+        localStorage.clear();
+        setAppState('setup-profile');
+      } catch (err) {
+        console.error('Logout error:', err);
+      }
+    }
+  };
+
+  const handleSaveProfile = async (newProfile: Technician) => {
+    if (!user) return;
+    const updatedProfile = { ...profile, ...newProfile, id: user.uid };
     setProfile(updatedProfile as UserProfile);
+    
+    if (firebase.db) {
+      try {
+        await setDoc(doc(firebase.db, 'users', user.uid), updatedProfile);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, firebase.auth);
+      }
+    }
+
     if (!updatedProfile.pinCode) {
       setAppState('setup-pin');
     } else {
@@ -171,55 +352,177 @@ export default function App() {
     }
   };
 
-  const handleSaveInvoice = (invoiceData: any) => {
+  const handlePayDeadline = (deadline: any) => {
+    setEditingExpense({
+      description: `Paiement ${deadline.title} (${deadline.type})`,
+      category: 'fiscal',
+      date: new Date().toISOString().split('T')[0],
+      amount: 0,
+      currency: profile?.defaultCurrency || 'DZD'
+    });
+    setIsExpenseModalOpen(true);
+  };
+
+  const handleSaveExpense = async (expenseData: any) => {
+    if (!user || !firebase.db) return;
+
+    if (editingExpense?.id) {
+      const updatedExpenses = expenses.map(exp => exp.id === editingExpense.id ? { ...exp, ...expenseData } as Expense : exp);
+      setExpenses(updatedExpenses);
+      try {
+        const expenseToSave = updatedExpenses.find(e => e.id === editingExpense.id);
+        if (expenseToSave) {
+          await setDoc(doc(firebase.db, 'users', user.uid, 'expenses', editingExpense.id), expenseToSave);
+        }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/expenses/${editingExpense.id}`, firebase.auth);
+      }
+    } else {
+      const newExpense = {
+        ...expenseData,
+        id: Math.random().toString(36).substr(2, 9),
+        technicianId: user.uid,
+      } as Expense;
+      setExpenses([newExpense, ...expenses]);
+      try {
+        await setDoc(doc(firebase.db, 'users', user.uid, 'expenses', newExpense.id), newExpense);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/expenses/${newExpense.id}`, firebase.auth);
+      }
+    }
+    setIsExpenseModalOpen(false);
+    setEditingExpense(null);
+  };
+
+  const handleDeleteExpense = async (id: string) => {
+    if (window.confirm('Voulez-vous vraiment supprimer cette dépense ?')) {
+      const updatedExpenses = expenses.filter(exp => exp.id !== id);
+      setExpenses(updatedExpenses);
+      if (user && firebase.db) {
+        try {
+          await deleteDoc(doc(firebase.db, 'users', user.uid, 'expenses', id));
+        } catch (err) {
+          handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/expenses/${id}`, firebase.auth);
+        }
+      }
+    }
+  };
+
+  const handleSaveInvoice = async (invoiceData: any) => {
     let finalInvoiceData = { ...invoiceData };
     
     // Handle inline client creation
     if (invoiceData.newClientData) {
       const newClient = invoiceData.newClientData as Client;
-      setClients([newClient, ...clients]);
+      const updatedClients = [newClient, ...clients];
+      setClients(updatedClients);
+      
+      if (user && firebase.db) {
+        try {
+          await setDoc(doc(firebase.db, 'users', user.uid, 'clients', newClient.id), newClient);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/clients/${newClient.id}`, firebase.auth);
+        }
+      }
+      
       delete finalInvoiceData.newClientData;
       delete finalInvoiceData.isNewClient;
       delete finalInvoiceData.newClient;
     }
 
     if (editingInvoice?.id) {
-      setInvoices(invoices.map(inv => inv.id === editingInvoice.id ? { ...inv, ...finalInvoiceData } as Invoice : inv));
+      const updatedInvoices = invoices.map(inv => inv.id === editingInvoice.id ? { ...inv, ...finalInvoiceData, technicianId: user?.uid || inv.technicianId } as Invoice : inv);
+      setInvoices(updatedInvoices);
+      
+      if (user && firebase.db) {
+        try {
+          const invoiceToSave = updatedInvoices.find(i => i.id === editingInvoice.id);
+          if (invoiceToSave) {
+            await setDoc(doc(firebase.db, 'users', user.uid, 'invoices', editingInvoice.id), invoiceToSave);
+          }
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/invoices/${editingInvoice.id}`, firebase.auth);
+        }
+      }
     } else {
       const newInvoice = {
         ...finalInvoiceData,
         id: Math.random().toString(36).substr(2, 9),
-        technicianId: profile?.id || 'default',
+        technicianId: user?.uid || 'default',
       } as Invoice;
       setInvoices([newInvoice, ...invoices]);
+      
+      if (user && firebase.db) {
+        try {
+          await setDoc(doc(firebase.db, 'users', user.uid, 'invoices', newInvoice.id), newInvoice);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/invoices/${newInvoice.id}`, firebase.auth);
+        }
+      }
     }
     setIsInvoiceModalOpen(false);
     setEditingInvoice(null);
   };
 
-  const handleSaveClient = (clientData: Partial<Client>) => {
+  const handleSaveClient = async (clientData: Partial<Client>) => {
     if (editingClient?.id) {
-      setClients(clients.map(c => c.id === editingClient.id ? { ...c, ...clientData } as Client : c));
+      const updatedClients = clients.map(c => c.id === editingClient.id ? { ...c, ...clientData } as Client : c);
+      setClients(updatedClients);
+      
+      if (user && firebase.db) {
+        try {
+          const clientToSave = updatedClients.find(c => c.id === editingClient.id);
+          if (clientToSave) {
+            await setDoc(doc(firebase.db, 'users', user.uid, 'clients', editingClient.id), clientToSave);
+          }
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/clients/${editingClient.id}`, firebase.auth);
+        }
+      }
     } else {
       const newClient = {
         ...clientData,
         id: Math.random().toString(36).substr(2, 9),
       } as Client;
       setClients([newClient, ...clients]);
+      
+      if (user && firebase.db) {
+        try {
+          await setDoc(doc(firebase.db, 'users', user.uid, 'clients', newClient.id), newClient);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/clients/${newClient.id}`, firebase.auth);
+        }
+      }
     }
     setIsClientModalOpen(false);
     setEditingClient(null);
   };
 
-  const handleDeleteInvoice = (invoice: Invoice) => {
+  const handleDeleteInvoice = async (invoice: Invoice) => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer cette facture ?')) {
       setInvoices(invoices.filter(i => i.id !== invoice.id));
+      if (user && firebase.db) {
+        try {
+          const { deleteDoc, doc } = await import('firebase/firestore');
+          await deleteDoc(doc(firebase.db, 'users', user.uid, 'invoices', invoice.id));
+        } catch (err) {
+          handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/invoices/${invoice.id}`, firebase.auth);
+        }
+      }
     }
   };
 
-  const handleDeleteClient = (client: Client) => {
+  const handleDeleteClient = async (client: Client) => {
     if (window.confirm('Êtes-vous sûr de vouloir supprimer ce client ?')) {
       setClients(clients.filter(c => c.id !== client.id));
+      if (user && firebase.db) {
+        try {
+          const { deleteDoc, doc } = await import('firebase/firestore');
+          await deleteDoc(doc(firebase.db, 'users', user.uid, 'clients', client.id));
+        } catch (err) {
+          handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/clients/${client.id}`, firebase.auth);
+        }
+      }
     }
   };
 
@@ -271,16 +574,21 @@ export default function App() {
         activeTab={activeTab} 
         onTabChange={setActiveTab}
         appIconUrl={profile?.appIconUrl}
+        isOnline={isOnline}
+        isSyncing={isSyncing}
+        onLogout={handleLogout}
       >
-        {activeTab === 'dashboard' && (
+        {activeTab === 'dashboard' && profile && (
           <Dashboard 
             stats={stats} 
             invoices={invoices}
             clients={clients}
+            technician={profile}
             onCreateInvoice={() => {
               setEditingInvoice(null);
               setIsInvoiceModalOpen(true);
             }} 
+            onPayDeadline={handlePayDeadline}
           />
         )}
         {activeTab === 'invoices' && (
@@ -295,18 +603,10 @@ export default function App() {
               setEditingInvoice(inv);
               setIsInvoiceModalOpen(true);
             }}
-            onDownload={(inv) => {
-              setViewingInvoice(inv);
-              setIsPreviewModalOpen(true);
-            }}
+            onDownload={handleDownloadInvoice}
+            onShare={handleShareInvoice}
             onDelete={handleDeleteInvoice}
-            onStatusChange={(inv, status) => {
-              setInvoices(invoices.map(i => i.id === inv.id ? { 
-                ...i, 
-                status,
-                paidAmount: status === 'paid' ? i.total : (status === 'unpaid' ? 0 : i.paidAmount)
-              } : i));
-            }}
+            onStatusChange={(inv, status) => handleUpdateInvoiceStatus(inv.id, status)}
             onCreate={() => {
               setEditingInvoice(null);
               setIsInvoiceModalOpen(true);
@@ -327,12 +627,50 @@ export default function App() {
             onDelete={handleDeleteClient}
           />
         )}
+        {activeTab === 'expenses' && (
+          <ExpenseList
+            expenses={expenses}
+            onAdd={() => {
+              setEditingExpense(null);
+              setIsExpenseModalOpen(true);
+            }}
+            onEdit={(exp) => {
+              setEditingExpense(exp);
+              setIsExpenseModalOpen(true);
+            }}
+            onDelete={handleDeleteExpense}
+          />
+        )}
         {activeTab === 'profile' && profile && (
           <Profile
             profile={profile}
+            user={user}
+            isSyncing={isSyncing}
             onSave={handleSaveProfile}
             onUpdateSignature={() => setIsSignatureModalOpen(true)}
+            onDeleteSignature={() => {
+              if (window.confirm('Supprimer la signature ?')) {
+                const updatedProfile = { ...profile, signatureUrl: undefined };
+                setProfile(updatedProfile as UserProfile);
+                if (user && firebase.db) {
+                  setDoc(doc(firebase.db, 'users', user.uid), updatedProfile)
+                    .catch(err => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, firebase.auth));
+                }
+              }
+            }}
             onUpdateStamp={() => setIsStampModalOpen(true)}
+            onDeleteStamp={() => {
+              if (window.confirm('Supprimer le cachet ?')) {
+                const updatedProfile = { ...profile, stampUrl: undefined };
+                setProfile(updatedProfile as UserProfile);
+                if (user && firebase.db) {
+                  setDoc(doc(firebase.db, 'users', user.uid), updatedProfile)
+                    .catch(err => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, firebase.auth));
+                }
+              }
+            }}
+            onLogin={loginWithGoogle}
+            onLogout={logout}
           />
         )}
         {activeTab === 'settings' && (
@@ -358,6 +696,7 @@ export default function App() {
         >
           <InvoiceForm
             clients={clients}
+            technician={profile!}
             initialData={editingInvoice || {}}
             onSave={handleSaveInvoice}
             onCancel={() => setIsInvoiceModalOpen(false)}
@@ -377,6 +716,19 @@ export default function App() {
         </Modal>
 
         <Modal
+          isOpen={isExpenseModalOpen}
+          onClose={() => setIsExpenseModalOpen(false)}
+          title={editingExpense ? 'Modifier la dépense' : 'Nouvelle dépense'}
+        >
+          <ExpenseForm
+            expense={editingExpense}
+            defaultCurrency={profile?.defaultCurrency}
+            onSave={handleSaveExpense}
+            onCancel={() => setIsExpenseModalOpen(false)}
+          />
+        </Modal>
+
+        <Modal
           isOpen={isPreviewModalOpen}
           onClose={() => setIsPreviewModalOpen(false)}
           title="Aperçu de la Facture"
@@ -388,15 +740,7 @@ export default function App() {
               client={clients.find(c => c.id === viewingInvoice.clientId)!}
               technician={profile!}
               onClose={() => setIsPreviewModalOpen(false)}
-              onStatusChange={(status) => {
-                const updatedInvoice = { 
-                  ...viewingInvoice, 
-                  status,
-                  paidAmount: status === 'paid' ? viewingInvoice.total : (status === 'unpaid' ? 0 : viewingInvoice.paidAmount)
-                };
-                setInvoices(invoices.map(i => i.id === viewingInvoice.id ? updatedInvoice : i));
-                setViewingInvoice(updatedInvoice);
-              }}
+              onStatusChange={(status) => handleUpdateInvoiceStatus(viewingInvoice.id, status)}
             />
           )}
         </Modal>

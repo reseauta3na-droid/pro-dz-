@@ -54,39 +54,79 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-let app, db: any, auth: any;
+let app: any, db: any, auth: any;
+let isInitialized = false;
 
-try {
-  // @ts-ignore
-  const firebaseConfig = await import('../../firebase-applet-config.json').then(m => m.default);
-  app = initializeApp(firebaseConfig);
-  db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-  auth = getAuth(app);
-} catch (e) {
-  console.warn('Firebase configuration not found or invalid. Please complete the setup.');
+export async function getFirebase() {
+  if (isInitialized) return { app, db, auth };
+  
+  try {
+    const configPath = '../../firebase-applet-config.json';
+    // @ts-ignore
+    const firebaseConfig = await import(/* @vite-ignore */ configPath).then(m => m.default);
+    const { initializeApp } = await import('firebase/app');
+    const { getFirestore, enableMultiTabIndexedDbPersistence, enableIndexedDbPersistence } = await import('firebase/firestore');
+    const { getAuth } = await import('firebase/auth');
+    
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    
+    // Enable offline persistence
+    try {
+      await enableMultiTabIndexedDbPersistence(db);
+    } catch (err: any) {
+      if (err.code === 'failed-precondition') {
+        // Multiple tabs open, persistence can only be enabled in one tab at a time.
+        console.warn('Firestore persistence failed-precondition: Multiple tabs open');
+      } else if (err.code === 'unimplemented') {
+        // The current browser does not support all of the features required to enable persistence
+        console.warn('Firestore persistence unimplemented: Browser not supported');
+        try {
+          await enableIndexedDbPersistence(db);
+        } catch (e) {
+          console.error('Failed to enable single-tab persistence', e);
+        }
+      }
+    }
+
+    auth = getAuth(app);
+    isInitialized = true;
+  } catch (e) {
+    console.warn('Firebase configuration not found or invalid. Please complete the setup.');
+  }
+  
+  return { app, db, auth };
 }
 
+// For backward compatibility with existing imports
 export { db, auth };
 
-export const googleProvider = new GoogleAuthProvider();
-
 export const loginWithGoogle = async () => {
-  if (!auth) throw new Error('Firebase not initialized');
+  const { auth } = await getFirebase();
+  if (!auth) throw new Error('Firebase not initialized. Please check your configuration.');
+  const { GoogleAuthProvider, signInWithPopup } = await import('firebase/auth');
+  const googleProvider = new GoogleAuthProvider();
   return signInWithPopup(auth, googleProvider);
 };
 
 export const logout = async () => {
+  const { auth } = await getFirebase();
   if (!auth) throw new Error('Firebase not initialized');
+  const { signOut } = await import('firebase/auth');
   return signOut(auth);
 };
 
 export async function testConnection() {
+  const { db } = await getFirebase();
   if (!db) return;
   try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
+    // Try to get a non-existent document in a valid path to test connectivity
+    // We use a random ID to avoid cache and ensure a network request if possible
+    await getDocFromServer(doc(db, 'heartbeat', 'test'));
   } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.error("Please check your Firebase configuration.");
+    if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('unavailable'))) {
+      console.error("Please check your Firebase configuration. The client is offline or Firestore is unavailable.");
     }
+    // We don't throw here to avoid crashing the app on startup if Firestore is just slow to connect
   }
 }

@@ -1,31 +1,103 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'motion/react';
-import { TrendingUp, FileText, CheckCircle, Clock, Plus, Calendar, User, Briefcase } from 'lucide-react';
+import { TrendingUp, FileText, CheckCircle, Clock, Plus, Calendar, User, Briefcase, Filter } from 'lucide-react';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { formatCurrency } from '../utils/calculations';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Invoice, Client } from '../types';
-import { format } from 'date-fns';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend } from 'recharts';
+import { Invoice, Client, Technician } from '../types';
+import { format, subDays, subMonths, subYears, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, eachDayOfInterval, eachMonthOfInterval, eachYearOfInterval } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { cn } from '../utils/cn';
+import { DeadlinesAlert } from './DeadlinesAlert';
 
 interface DashboardProps {
   stats: {
     totalEarned: number;
+    totalExpenses: number;
+    profit: number;
     invoiceCount: number;
     paidCount: number;
     unpaidCount: number;
     annualTotal: number;
     annualIfu: number;
-    monthlyData: { month: string; amount: number }[];
+    annualTva: number;
   };
   invoices: Invoice[];
   clients: Client[];
+  technician: Technician;
   onCreateInvoice: () => void;
+  onPayDeadline: (deadline: any) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ stats, invoices, clients, onCreateInvoice }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ stats, invoices, clients, technician, onCreateInvoice, onPayDeadline }) => {
+  const [viewType, setViewType] = useState<'day' | 'month' | 'year'>('month');
   const recentInvoices = [...invoices].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+
+  const chartData = useMemo(() => {
+    const now = new Date();
+    let periods: Date[] = [];
+    let dateFormat = '';
+
+    if (viewType === 'day') {
+      periods = eachDayOfInterval({
+        start: subDays(now, 6),
+        end: now,
+      });
+      dateFormat = 'dd MMM';
+    } else if (viewType === 'month') {
+      periods = eachMonthOfInterval({
+        start: subMonths(now, 5),
+        end: now,
+      });
+      dateFormat = 'MMM';
+    } else {
+      periods = eachYearOfInterval({
+        start: subYears(now, 2),
+        end: now,
+      });
+      dateFormat = 'yyyy';
+    }
+
+    return periods.map(date => {
+      let start: Date, end: Date;
+      if (viewType === 'day') {
+        start = startOfDay(date);
+        end = endOfDay(date);
+      } else if (viewType === 'month') {
+        start = startOfMonth(date);
+        end = endOfMonth(date);
+      } else {
+        start = startOfYear(date);
+        end = endOfYear(date);
+      }
+
+      const periodInvoices = invoices.filter(inv => {
+        const invDate = new Date(inv.date);
+        return isWithinInterval(invDate, { start, end });
+      });
+
+      const paid = periodInvoices
+        .filter(inv => inv.status === 'paid')
+        .reduce((acc, inv) => acc + inv.total, 0);
+      
+      const unpaid = periodInvoices
+        .filter(inv => inv.status === 'unpaid' || inv.status === 'partial')
+        .reduce((acc, inv) => acc + (inv.total - inv.paidAmount), 0);
+
+      const paidCount = periodInvoices.filter(inv => inv.status === 'paid').length;
+      const unpaidCount = periodInvoices.filter(inv => inv.status === 'unpaid' || inv.status === 'partial').length;
+
+      return {
+        label: format(date, dateFormat, { locale: fr }),
+        paid,
+        unpaid,
+        paidCount,
+        unpaidCount,
+        total: paid + unpaid
+      };
+    });
+  }, [invoices, viewType]);
 
   return (
     <div className="space-y-8">
@@ -40,6 +112,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, invoices, clients, 
         </Button>
       </header>
 
+      <DeadlinesAlert onPay={onPayDeadline} />
+
       {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="flex flex-col justify-between border-emerald-100 bg-emerald-50/50">
@@ -47,38 +121,38 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, invoices, clients, 
             <div className="rounded-xl bg-emerald-100 p-2 text-emerald-600">
               <TrendingUp className="h-5 w-5" />
             </div>
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Total Gagné</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Revenu (Payé)</span>
           </div>
           <div className="mt-4">
-            <h2 className="text-2xl font-black text-emerald-900">{formatCurrency(stats.totalEarned)}</h2>
+            <h2 className="text-2xl font-black text-emerald-900">{formatCurrency(stats.totalEarned, technician.defaultCurrency)}</h2>
           </div>
         </Card>
 
-        <Card className="flex flex-col justify-between">
+        <Card className="flex flex-col justify-between border-red-100 bg-red-50/50">
           <div className="flex items-center justify-between">
-            <div className="rounded-xl bg-zinc-100 p-2 text-zinc-600">
-              <FileText className="h-5 w-5" />
+            <div className="rounded-xl bg-red-100 p-2 text-red-600">
+              <TrendingUp className="h-5 w-5 rotate-180" />
             </div>
-            <span className="text-xs font-bold uppercase tracking-wider text-zinc-500">Factures</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-red-600">Dépenses</span>
           </div>
           <div className="mt-4">
-            <h2 className="text-2xl font-black text-zinc-900">{stats.invoiceCount}</h2>
+            <h2 className="text-2xl font-black text-red-900">{formatCurrency(stats.totalExpenses, technician.defaultCurrency)}</h2>
           </div>
         </Card>
 
-        <Card className="flex flex-col justify-between">
+        <Card className="flex flex-col justify-between border-blue-100 bg-blue-50/50">
           <div className="flex items-center justify-between">
-            <div className="rounded-xl bg-emerald-100 p-2 text-emerald-600">
-              <CheckCircle className="h-5 w-5" />
+            <div className="rounded-xl bg-blue-100 p-2 text-blue-600">
+              <TrendingUp className="h-5 w-5" />
             </div>
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-600">Payées</span>
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-600">Bénéfice Net</span>
           </div>
           <div className="mt-4">
-            <h2 className="text-2xl font-black text-emerald-900">{stats.paidCount}</h2>
+            <h2 className="text-2xl font-black text-blue-900">{formatCurrency(stats.profit, technician.defaultCurrency)}</h2>
           </div>
         </Card>
 
-        <Card className="flex flex-col justify-between">
+        <Card className="flex flex-col justify-between border-amber-100 bg-amber-50/50">
           <div className="flex items-center justify-between">
             <div className="rounded-xl bg-amber-100 p-2 text-amber-600">
               <Clock className="h-5 w-5" />
@@ -86,7 +160,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, invoices, clients, 
             <span className="text-xs font-bold uppercase tracking-wider text-amber-600">En Attente</span>
           </div>
           <div className="mt-4">
-            <h2 className="text-2xl font-black text-amber-900">{stats.unpaidCount}</h2>
+            <h2 className="text-2xl font-black text-amber-900">
+              {formatCurrency(
+                invoices.filter(i => i.status !== 'paid').reduce((acc, i) => acc + (i.total - i.paidAmount), 0),
+                technician.defaultCurrency
+              )}
+            </h2>
           </div>
         </Card>
       </div>
@@ -107,16 +186,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, invoices, clients, 
           <div className="grid gap-6 sm:grid-cols-2">
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1">Chiffre d'Affaires Annuel (Global)</p>
-              <h4 className="text-2xl font-black text-zinc-900">{formatCurrency(stats.annualTotal)}</h4>
+              <h4 className="text-2xl font-black text-zinc-900">{formatCurrency(stats.annualTotal, technician.defaultCurrency)}</h4>
               <p className="text-xs text-zinc-500 mt-2">Total des factures (payées ou non) pour l'année en cours.</p>
             </div>
             <div className="p-4 rounded-2xl bg-white border border-amber-100 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-wider text-amber-600 mb-1">Impôt à payer (0.5%)</p>
-              <h4 className="text-3xl font-black text-amber-600">{formatCurrency(stats.annualIfu)}</h4>
-              <div className="mt-4 flex items-center space-x-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+              <p className="text-xs font-bold uppercase tracking-wider text-amber-600 mb-1">Impôt IFU (0.5%)</p>
+              <h4 className="text-2xl font-black text-amber-600">{formatCurrency(stats.annualIfu, technician.defaultCurrency)}</h4>
+              <div className="mt-2 flex items-center space-x-2 text-[10px] font-bold uppercase tracking-widest text-zinc-400">
                 <Clock className="h-3 w-3" />
                 <span>À payer avant le 30 Juin {new Date().getFullYear() + 1}</span>
               </div>
+            </div>
+            <div className="p-4 rounded-2xl bg-white border border-emerald-100 shadow-sm">
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-600 mb-1">
+                {stats.annualTva < 0 ? 'TVA Déductible / Crédit' : 'TVA à reverser'}
+              </p>
+              <h4 className={`text-2xl font-black ${stats.annualTva < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                {stats.annualTva < 0 ? '-' : ''}{formatCurrency(Math.abs(stats.annualTva), technician.defaultCurrency)}
+              </h4>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 mt-2">
+                {stats.annualTva < 0 ? 'Crédit de TVA cumulé' : 'Total TVA collectée sur vos factures'}
+              </p>
             </div>
           </div>
         </Card>
@@ -209,39 +299,89 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, invoices, clients, 
 
       {/* Chart Section */}
       <Card className="p-6">
-        <h3 className="mb-6 text-lg font-bold text-zinc-900">Évolution des Revenus</h3>
-        <div className="h-[300px] w-full">
+        <div className="flex flex-col space-y-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0 mb-8">
+          <div>
+            <h3 className="text-lg font-bold text-zinc-900">Évolution des Revenus</h3>
+            <p className="text-xs text-zinc-500">Suivi des montants encaissés et en attente.</p>
+          </div>
+          
+          <div className="flex items-center bg-zinc-100 p-1 rounded-xl">
+            {(['day', 'month', 'year'] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => setViewType(type)}
+                className={cn(
+                  "px-4 py-1.5 text-xs font-bold uppercase tracking-widest transition-all duration-200 rounded-lg",
+                  viewType === type 
+                    ? "bg-white text-emerald-600 shadow-sm" 
+                    : "text-zinc-500 hover:text-zinc-900"
+                )}
+              >
+                {type === 'day' ? 'Jour' : type === 'month' ? 'Mois' : 'Année'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="h-[350px] w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={stats.monthlyData}>
+            <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
               <XAxis
-                dataKey="month"
+                dataKey="label"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 12, fontWeight: 600, fill: '#71717a' }}
+                tick={{ fontSize: 11, fontWeight: 700, fill: '#71717a' }}
                 dy={10}
               />
               <YAxis
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 12, fontWeight: 600, fill: '#71717a' }}
-                tickFormatter={(value) => `${value / 1000}k`}
+                tick={{ fontSize: 11, fontWeight: 700, fill: '#71717a' }}
+                tickFormatter={(value) => `${value >= 1000 ? (value / 1000).toFixed(0) + 'k' : value}`}
               />
               <Tooltip
                 cursor={{ fill: '#f4f4f5', radius: 8 }}
-                contentStyle={{
-                  borderRadius: '16px',
-                  border: 'none',
-                  boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)',
-                  padding: '12px',
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="bg-white p-4 rounded-2xl shadow-xl border border-zinc-100 min-w-[200px]">
+                        <p className="text-xs font-black uppercase tracking-widest text-zinc-400 mb-3">{label}</p>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                              <span className="text-xs font-bold text-zinc-600">Payé ({data.paidCount})</span>
+                            </div>
+                            <span className="text-xs font-black text-emerald-600">{formatCurrency(data.paid, technician.defaultCurrency)}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <div className="h-2 w-2 rounded-full bg-amber-500" />
+                              <span className="text-xs font-bold text-zinc-600">En attente ({data.unpaidCount})</span>
+                            </div>
+                            <span className="text-xs font-black text-amber-600">{formatCurrency(data.unpaid, technician.defaultCurrency)}</span>
+                          </div>
+                          <div className="pt-2 border-t border-zinc-50 flex items-center justify-between">
+                            <span className="text-xs font-black uppercase text-zinc-900">Total</span>
+                            <span className="text-sm font-black text-zinc-900">{formatCurrency(data.total, technician.defaultCurrency)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
                 }}
-                formatter={(value: number) => [formatCurrency(value), 'Revenu']}
               />
-              <Bar dataKey="amount" radius={[8, 8, 0, 0]}>
-                {stats.monthlyData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={index === stats.monthlyData.length - 1 ? '#059669' : '#10b981'} />
-                ))}
-              </Bar>
+              <Legend 
+                verticalAlign="top" 
+                align="right" 
+                iconType="circle"
+                wrapperStyle={{ paddingBottom: '20px', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}
+              />
+              <Bar name="Payé" dataKey="paid" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} barSize={32} />
+              <Bar name="En attente" dataKey="unpaid" stackId="a" fill="#f59e0b" radius={[8, 8, 0, 0]} barSize={32} />
             </BarChart>
           </ResponsiveContainer>
         </div>

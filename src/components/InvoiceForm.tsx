@@ -4,39 +4,50 @@ import { Plus, Trash2, Calculator, Calendar, User, Briefcase, FileText, CreditCa
 import { Card } from './ui/Card';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
-import { Client, InvoiceItem, Invoice } from '../types';
+import { Client, InvoiceItem, Invoice, Currency, Technician } from '../types';
 import { calculateInvoiceTotals, formatCurrency } from '../utils/calculations';
 
 interface InvoiceFormProps {
   clients: Client[];
+  technician: Technician;
   initialData?: Partial<Invoice>;
   onSave: (invoice: Partial<Invoice>) => void;
   onCancel: () => void;
 }
 
-export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, initialData, onSave, onCancel }) => {
+export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, technician, initialData, onSave, onCancel }) => {
   const [formData, setFormData] = React.useState({
-    invoiceNumber: initialData?.invoiceNumber || `${initialData?.type === 'quote' ? 'DEV' : 'FAC'}-${new Date().getFullYear()}-${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
+    invoiceNumber: initialData?.invoiceNumber || `${initialData?.type === 'quote' ? 'DEV' : 'FAC'}/${new Date().getFullYear()}/${Math.floor(Math.random() * 1000).toString().padStart(3, '0')}`,
     type: initialData?.type || 'invoice',
     date: initialData?.date || new Date().toISOString().split('T')[0],
     projectName: initialData?.projectName || '',
     clientId: initialData?.clientId || '',
     isNewClient: false,
-    newClient: { name: '', address: '', email: '', phone: '', nif: '', nis: '', bankAccount: '' },
-    items: initialData?.items || [{ description: '', unit: 'day', quantity: 1, pricePerUnit: 0 }] as InvoiceItem[],
+    newClient: { name: '', address: '', email: '', phone: '', nif: '', nis: '', bankAccount: '', additionalInfo: '' },
+      items: initialData?.items || [{ description: '', unit: 'day', quantity: 1, pricePerUnit: 0 }] as InvoiceItem[],
+    currency: initialData?.currency || 'DZD' as Currency,
     status: initialData?.status || 'unpaid',
     paidAmount: initialData?.paidAmount || 0,
     showSignature: initialData?.showSignature ?? true,
     showStamp: initialData?.showStamp ?? true,
     taxRate: initialData?.taxRate ?? 0.005,
+    tvaRate: initialData?.tvaRate ?? 0,
+    isTvaNegative: initialData?.isTvaNegative ?? false,
     notes: initialData?.notes || '',
   });
+
+  // Auto-set TVA to 0 if auto-entrepreneur
+  React.useEffect(() => {
+    if (technician.legalStatus === 'auto-entrepreneur') {
+      setFormData(prev => ({ ...prev, tvaRate: 0, isTvaNegative: false }));
+    }
+  }, [technician.legalStatus]);
 
   // Update invoice number prefix when type changes if it's still a default number
   React.useEffect(() => {
     if (!initialData?.invoiceNumber) {
       const prefix = formData.type === 'quote' ? 'DEV' : 'FAC';
-      const currentPrefix = formData.invoiceNumber.split('-')[0];
+      const currentPrefix = formData.invoiceNumber.split('/')[0];
       if (currentPrefix !== prefix) {
         setFormData(prev => ({
           ...prev,
@@ -46,7 +57,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, initialData, 
     }
   }, [formData.type, initialData?.invoiceNumber]);
 
-  const totals = calculateInvoiceTotals(formData.items, formData.taxRate);
+  const totals = calculateInvoiceTotals(formData.items, formData.taxRate, formData.tvaRate, formData.isTvaNegative);
 
   const addItem = () => {
     setFormData({
@@ -64,7 +75,14 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, initialData, 
 
   const updateItem = (index: number, field: keyof InvoiceItem, value: any) => {
     const newItems = [...formData.items];
-    newItems[index] = { ...newItems[index], [field]: value };
+    let updatedItem = { ...newItems[index], [field]: value };
+    
+    // If unit is changed to forfait, set quantity to 1
+    if (field === 'unit' && value === 'forfait') {
+      updatedItem.quantity = 1;
+    }
+    
+    newItems[index] = updatedItem;
     setFormData({ ...formData, items: newItems });
   };
 
@@ -144,6 +162,25 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, initialData, 
                 required
               />
               <div className="space-y-1.5">
+                <label className="text-xs font-black uppercase tracking-widest text-zinc-400">Devise</label>
+                <div className="relative">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400">
+                    <CreditCard className="h-4 w-4" />
+                  </div>
+                  <select
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50/50 py-3 pl-12 pr-4 text-sm font-bold transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 text-zinc-900"
+                    value={formData.currency}
+                    onChange={(e) => setFormData({ ...formData, currency: e.target.value as any })}
+                  >
+                    <option value="DZD">DZD (Dinar Algérien)</option>
+                    <option value="EUR">EUR (Euro)</option>
+                    <option value="USD">USD (Dollar US)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Client</label>
                   <button
@@ -233,12 +270,18 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, initialData, 
                         placeholder="Numéro de compte bancaire ou CCP"
                         className="bg-white"
                       />
+                      <Input
+                        label="Infos Supplémentaires (Optionnel)"
+                        value={formData.newClient.additionalInfo}
+                        onChange={(e) => setFormData({ ...formData, newClient: { ...formData.newClient, additionalInfo: e.target.value } })}
+                        placeholder="Autres informations..."
+                        className="bg-white"
+                      />
                     </div>
                   )}
                 </div>
               </div>
-            </div>
-          </Card>
+            </Card>
 
           {/* Items Section */}
           <Card className="p-6">
@@ -275,14 +318,15 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, initialData, 
                       </div>
                       <div className="w-full sm:w-32">
                         <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Unité</label>
-                        <select
-                          value={item.unit}
-                          onChange={(e) => updateItem(index, 'unit', e.target.value)}
-                          className="mt-1.5 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
-                        >
-                          <option value="day">Jour</option>
-                          <option value="week">Semaine (6j)</option>
-                        </select>
+                          <select
+                            value={item.unit}
+                            onChange={(e) => updateItem(index, 'unit', e.target.value)}
+                            className="mt-1.5 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+                          >
+                            <option value="day">Jour</option>
+                            <option value="week">Semaine (6j)</option>
+                            <option value="forfait">Forfait</option>
+                          </select>
                       </div>
                       
                       {item.unit === 'week' ? (
@@ -309,7 +353,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, initialData, 
                             />
                           </div>
                         </div>
-                      ) : (
+                      ) : item.unit === 'day' ? (
                         <div className="w-full sm:w-24">
                           <Input
                             label="Qté"
@@ -320,6 +364,10 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, initialData, 
                             onChange={(e) => updateItem(index, 'quantity', parseFloat(e.target.value) || 0)}
                             required
                           />
+                        </div>
+                      ) : (
+                        <div className="w-full sm:w-24 flex items-end justify-center pb-2.5">
+                          <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Forfait</span>
                         </div>
                       )}
 
@@ -361,11 +409,11 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, initialData, 
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-zinc-500">Sous-total</span>
-                <span className="font-bold text-zinc-900">{formatCurrency(totals.subTotal)}</span>
+                <span className="font-bold text-zinc-900">{formatCurrency(totals.subTotal, formData.currency)}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <div className="flex items-center space-x-2">
-                  <span className="text-zinc-500">Impôt (0.5%)</span>
+                  <span className="text-zinc-500">Impôt IFU (0.5%)</span>
                   <input
                     type="checkbox"
                     checked={formData.taxRate > 0}
@@ -373,12 +421,45 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, initialData, 
                     className="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
                   />
                 </div>
-                <span className="font-bold text-emerald-600">+{formatCurrency(totals.taxAmount)}</span>
+                <span className="font-bold text-emerald-600">+{formatCurrency(totals.taxAmount, formData.currency)}</span>
               </div>
+              {technician.legalStatus === 'registre-commerce' && (
+                <div className="flex flex-col space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-zinc-500">TVA (%)</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.1"
+                        value={formData.tvaRate * 100}
+                        onChange={(e) => setFormData({ ...formData, tvaRate: (parseFloat(e.target.value) || 0) / 100 })}
+                        className="w-16 rounded-lg border border-zinc-200 bg-white px-2 py-1 text-xs font-bold outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                    <span className={`font-bold ${formData.isTvaNegative ? 'text-red-600' : 'text-emerald-600'}`}>
+                      {formData.isTvaNegative ? '-' : '+'}{formatCurrency(totals.tvaAmount, formData.currency)}
+                    </span>
+                  </div>
+                  <div className="flex items-center space-x-2 px-1">
+                    <input
+                      type="checkbox"
+                      id="is-tva-negative"
+                      checked={formData.isTvaNegative}
+                      onChange={(e) => setFormData({ ...formData, isTvaNegative: e.target.checked })}
+                      className="h-3 w-3 rounded border-zinc-300 text-red-600 focus:ring-red-500"
+                    />
+                    <label htmlFor="is-tva-negative" className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 cursor-pointer">
+                      TVA Négative (Déduction)
+                    </label>
+                  </div>
+                </div>
+              )}
               <div className="border-t border-zinc-100 pt-4">
                 <div className="flex justify-between">
                   <span className="text-lg font-bold text-zinc-900">Total Net</span>
-                  <span className="text-2xl font-black text-emerald-600">{formatCurrency(totals.total)}</span>
+                  <span className="text-2xl font-black text-emerald-600">{formatCurrency(totals.total, formData.currency)}</span>
                 </div>
               </div>
 
@@ -386,7 +467,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, initialData, 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Input
-                      label="Acompte (DA)"
+                      label={`Acompte (${formData.currency})`}
                       type="number"
                       icon={<CreditCard className="h-4 w-4" />}
                       value={isNaN(formData.paidAmount) ? '' : String(formData.paidAmount)}
@@ -402,7 +483,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, initialData, 
                           status: newStatus
                         });
                       }}
-                      placeholder="0.00 DA"
+                      placeholder={`0.00 ${formData.currency}`}
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -431,7 +512,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, initialData, 
                 <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest px-1">
                   <span className="text-zinc-400">Reste à payer</span>
                   <span className={totals.total - formData.paidAmount > 0 ? 'text-amber-600' : 'text-emerald-600'}>
-                    {formatCurrency(Math.max(0, totals.total - formData.paidAmount))}
+                    {formatCurrency(Math.max(0, totals.total - formData.paidAmount), formData.currency)}
                   </span>
                 </div>
               </div>

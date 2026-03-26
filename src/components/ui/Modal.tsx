@@ -33,16 +33,16 @@ export const Modal: React.FC<ModalProps> = ({
   }, [isOpen]);
 
   const sizes = {
-    sm: 'max-w-sm',
-    md: 'max-w-md',
-    lg: 'max-w-lg',
-    full: 'max-w-full m-4',
+    sm: 'max-w-sm rounded-3xl',
+    md: 'max-w-md rounded-3xl',
+    lg: 'max-w-lg rounded-3xl',
+    full: 'max-w-full h-full sm:h-[95vh] sm:max-w-[95vw] rounded-none sm:rounded-3xl',
   };
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-6">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -55,19 +55,24 @@ export const Modal: React.FC<ModalProps> = ({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             className={cn(
-              'relative w-full overflow-hidden rounded-3xl bg-white shadow-2xl',
+              'relative w-full overflow-hidden bg-white shadow-2xl flex flex-col',
               sizes[size]
             )}
           >
-            <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-4 flex-shrink-0">
               {title && <h3 className="text-lg font-bold text-zinc-900">{title}</h3>}
               <Button variant="ghost" size="icon" onClick={onClose} className="-mr-2">
                 <X className="h-5 w-5" />
               </Button>
             </div>
-            <div className="max-h-[70vh] overflow-y-auto p-6">{children}</div>
+            <div className={cn(
+              "flex-1 overflow-y-auto",
+              size === 'full' ? 'p-0 sm:p-6' : 'p-6'
+            )}>
+              {children}
+            </div>
             {footer && (
-              <div className="flex items-center justify-end gap-3 border-t border-zinc-100 px-6 py-4 bg-zinc-50/50">
+              <div className="flex items-center justify-end gap-3 border-t border-zinc-100 px-6 py-4 bg-zinc-50/50 flex-shrink-0">
                 {footer}
               </div>
             )}

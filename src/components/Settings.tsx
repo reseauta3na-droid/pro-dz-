@@ -5,6 +5,9 @@ import { Card } from './ui/Card';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
 import { generateAppIcon } from '../services/imageService';
+import { FISCAL_DEADLINES } from '../constants/deadlines';
+import { format } from 'date-fns';
+import { fr } from 'date-fns/locale';
 
 interface SettingsProps {
   pinCode: string;
@@ -191,6 +194,37 @@ export const Settings: React.FC<SettingsProps> = ({
               </Button>
             </div>
           </div>
+        </Card>
+
+        {/* Cloud Sync Section */}
+        <Card className="p-8 lg:col-span-2">
+          <div className="mb-6 flex items-center space-x-3">
+            <div className="rounded-xl bg-amber-100 p-2 text-amber-600">
+              <Bell className="h-5 w-5" />
+            </div>
+            <h3 className="text-lg font-bold text-zinc-900">Calendrier Fiscal & Social</h3>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {FISCAL_DEADLINES.map((deadline) => {
+              const [month, day] = deadline.date.split('-').map(Number);
+              const date = new Date(new Date().getFullYear(), month - 1, day);
+              
+              return (
+                <div key={deadline.id} className="flex flex-col rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{deadline.type}</span>
+                    <span className="text-xs font-bold text-amber-600">{format(date, 'dd MMMM', { locale: fr })}</span>
+                  </div>
+                  <h4 className="text-sm font-bold text-zinc-900">{deadline.title}</h4>
+                  <p className="mt-1 text-[10px] text-zinc-500">{deadline.description}</p>
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-4 text-[10px] text-zinc-400 italic">
+            * Ces dates sont données à titre indicatif pour le régime d'auto-entrepreneur (IFU) et la CASNOS en Algérie.
+          </p>
         </Card>
 
         {/* Cloud Sync Section */}

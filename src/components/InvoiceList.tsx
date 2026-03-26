@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Search, Filter, MoreVertical, Download, Eye, Trash2, CheckCircle, Clock, FileText, Plus, Pencil } from 'lucide-react';
+import { Search, Filter, MoreVertical, Download, Eye, Trash2, CheckCircle, Clock, FileText, Plus, Pencil, Share2, MessageCircle, Mail } from 'lucide-react';
 import { Card } from './ui/Card';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
@@ -16,6 +16,7 @@ interface InvoiceListProps {
   onView: (invoice: Invoice) => void;
   onEdit: (invoice: Invoice) => void;
   onDownload: (invoice: Invoice) => void;
+  onShare: (invoice: Invoice, method: 'whatsapp' | 'email') => void;
   onDelete: (invoice: Invoice) => void;
   onStatusChange: (invoice: Invoice, status: 'paid' | 'unpaid' | 'partial') => void;
   onCreate: () => void;
@@ -27,6 +28,7 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
   onView,
   onEdit,
   onDownload,
+  onShare,
   onDelete,
   onStatusChange,
   onCreate,
@@ -129,10 +131,12 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
 
                   <div className="flex items-center space-x-4">
                     <div className="text-right">
-                      <p className="text-lg font-black text-zinc-900">{formatCurrency(invoice.total)}</p>
-                      <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                        {invoice.totalDays} jours
-                      </p>
+                      <p className="text-lg font-black text-zinc-900">{formatCurrency(invoice.total, invoice.currency)}</p>
+                      {invoice.totalDays > 0 && (
+                        <p className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                          {invoice.totalDays} jours
+                        </p>
+                      )}
                     </div>
 
                     <div className="flex items-center space-x-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
@@ -145,6 +149,27 @@ export const InvoiceList: React.FC<InvoiceListProps> = ({
                       <Button variant="ghost" size="icon" onClick={() => onDownload(invoice)}>
                         <Download className="h-4 w-4" />
                       </Button>
+                      <div className="relative group/share">
+                        <Button variant="ghost" size="icon">
+                          <Share2 className="h-4 w-4" />
+                        </Button>
+                        <div className="absolute right-0 top-full z-10 mt-1 hidden w-32 flex-col rounded-xl border border-zinc-100 bg-white p-1 shadow-xl group-hover/share:flex">
+                          <button
+                            onClick={() => onShare(invoice, 'whatsapp')}
+                            className="flex items-center rounded-lg px-3 py-2 text-xs font-bold text-emerald-600 hover:bg-emerald-50"
+                          >
+                            <MessageCircle className="mr-2 h-3 w-3" />
+                            WhatsApp
+                          </button>
+                          <button
+                            onClick={() => onShare(invoice, 'email')}
+                            className="flex items-center rounded-lg px-3 py-2 text-xs font-bold text-blue-600 hover:bg-blue-50"
+                          >
+                            <Mail className="mr-2 h-3 w-3" />
+                            Email
+                          </button>
+                        </div>
+                      </div>
                       <Button variant="ghost" size="icon" onClick={() => onDelete(invoice)} className="text-red-500">
                         <Trash2 className="h-4 w-4" />
                       </Button>

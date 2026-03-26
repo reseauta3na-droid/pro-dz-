@@ -8,11 +8,31 @@
     <meta name="theme-color" content="#059669" />
     <link rel="apple-touch-icon" href="/icon.svg" />
     <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js');
-        });
-      }
+      // Fix for "TypeError: Cannot set property fetch of #<Window> which has only a getter"
+      (function() {
+        try {
+          var nativeFetch = window.fetch || self.fetch || globalThis.fetch;
+          function protect(obj, prop) {
+            if (!obj) return;
+            try {
+              var desc = Object.getOwnPropertyDescriptor(obj, prop);
+              if (desc && !desc.configurable) return;
+              Object.defineProperty(obj, prop, {
+                get: function() { return nativeFetch; },
+                set: function(v) { 
+                  console.warn('Blocked attempt to overwrite ' + prop); 
+                  return nativeFetch;
+                },
+                configurable: true,
+                enumerable: true
+              });
+            } catch (e) {}
+          }
+          protect(window, 'fetch');
+          protect(globalThis, 'fetch');
+          protect(self, 'fetch');
+        } catch (err) {}
+      })();
     </script>
   </head>
   <body>

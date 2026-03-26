@@ -1,20 +1,31 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { LayoutDashboard, FileText, Users, User, Settings, LogOut } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, User, Settings, LogOut, Cloud, CloudOff, RefreshCw, Receipt } from 'lucide-react';
 import { cn } from '../utils/cn';
 
 interface LayoutProps {
   children: React.ReactNode;
   activeTab: string;
   appIconUrl?: string;
+  isOnline?: boolean;
+  isSyncing?: boolean;
   onTabChange: (tab: string) => void;
   onLogout?: () => void;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, activeTab, appIconUrl, onTabChange, onLogout }) => {
+export const Layout: React.FC<LayoutProps> = ({ 
+  children, 
+  activeTab, 
+  appIconUrl, 
+  isOnline = true,
+  isSyncing = false,
+  onTabChange, 
+  onLogout 
+}) => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'invoices', label: 'Factures', icon: FileText },
+    { id: 'expenses', label: 'Dépenses', icon: Receipt },
     { id: 'clients', label: 'Clients', icon: Users },
     { id: 'profile', label: 'Profil', icon: User },
     { id: 'settings', label: 'Paramètres', icon: Settings },
@@ -33,6 +44,29 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, appIconUrl,
             )}
           </div>
           <span className="text-xl font-black tracking-tight text-zinc-900">Tech DZ Pro</span>
+        </div>
+
+        <div className="mb-6 px-4">
+          <div className={cn(
+            "flex items-center space-x-2 rounded-xl px-3 py-2 text-[10px] font-bold uppercase tracking-widest",
+            isOnline ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"
+          )}>
+            {isOnline ? (
+              <>
+                {isSyncing ? (
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Cloud className="h-3 w-3" />
+                )}
+                <span>{isSyncing ? 'Synchronisation...' : 'En ligne'}</span>
+              </>
+            ) : (
+              <>
+                <CloudOff className="h-3 w-3" />
+                <span>Mode Hors-ligne</span>
+              </>
+            )}
+          </div>
         </div>
 
         <nav className="flex-1 space-y-2">
@@ -87,7 +121,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, appIconUrl,
                   <FileText className="h-5 w-5" />
                 )}
               </div>
-              <span className="text-lg font-black tracking-tight">Tech DZ Pro</span>
+              <div className="flex flex-col">
+                <span className="text-sm font-black tracking-tight">Tech DZ Pro</span>
+                <div className="flex items-center space-x-1">
+                  {isOnline ? (
+                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  ) : (
+                    <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                  )}
+                  <span className="text-[8px] font-bold uppercase text-zinc-400">
+                    {isOnline ? (isSyncing ? 'Sync...' : 'En ligne') : 'Hors-ligne'}
+                  </span>
+                </div>
+              </div>
             </div>
             {onLogout && (
               <button onClick={onLogout} className="text-red-500">
@@ -110,6 +156,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, activeTab, appIconUrl,
             </motion.div>
           </AnimatePresence>
         </div>
+
+        <footer className="mt-auto border-t border-zinc-100 py-8 text-center px-6">
+          <p className="text-[10px] font-medium leading-relaxed text-zinc-400 sm:text-xs">
+            Cette application a été créée et développée par <span className="font-bold text-zinc-600">Hocine Mellal</span>, ingénieur du son, pour ses confrères techniciens algériens.
+          </p>
+        </footer>
       </main>
 
       {/* Bottom navigation for mobile */}

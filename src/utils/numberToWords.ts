@@ -3,6 +3,8 @@
  * Specifically tailored for currency (Dinars Algériens).
  */
 
+import { Currency } from '../types';
+
 const units = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf'];
 const teens = ['dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
 const tens = ['', 'dix', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante-dix', 'quatre-vingt', 'quatre-vingt-dix'];
@@ -76,20 +78,42 @@ function convertLargeNumber(n: number): string {
   return convertLessThanThousand(n);
 }
 
-export function numberToWords(n: number): string {
-  if (n === 0) return 'Zéro dinar';
+export function numberToWords(n: number, currency: Currency = 'DZD'): string {
+  if (n === 0) {
+    if (currency === 'DZD') return 'Zéro dinar';
+    if (currency === 'EUR') return 'Zéro euro';
+    if (currency === 'USD') return 'Zéro dollar';
+    return 'Zéro';
+  }
 
   const integerPart = Math.floor(n);
   const decimalPart = Math.round((n - integerPart) * 100);
 
   let res = convertLargeNumber(integerPart);
 
-  res = res.trim() + ' dinar';
-  if (integerPart > 1) res += 's';
-
-  if (decimalPart > 0) {
-    res += ' et ' + convertLessThanThousand(decimalPart) + ' centime';
-    if (decimalPart > 1) res += 's';
+  if (currency === 'DZD') {
+    res = res.trim() + ' dinar';
+    if (integerPart > 1) res += 's';
+    if (decimalPart > 0) {
+      res += ' et ' + convertLessThanThousand(decimalPart) + ' centime';
+      if (decimalPart > 1) res += 's';
+    }
+  } else if (currency === 'EUR') {
+    res = res.trim() + ' euro';
+    if (integerPart > 1) res += 's';
+    if (decimalPart > 0) {
+      res += ' et ' + convertLessThanThousand(decimalPart) + ' cent';
+      if (decimalPart > 1) res += 's';
+    }
+  } else if (currency === 'USD') {
+    res = res.trim() + ' dollar';
+    if (integerPart > 1) res += 's';
+    if (decimalPart > 0) {
+      res += ' et ' + convertLessThanThousand(decimalPart) + ' cent';
+      if (decimalPart > 1) res += 's';
+    }
+  } else {
+    res = res.trim() + ' ' + currency;
   }
 
   return res.charAt(0).toUpperCase() + res.slice(1);

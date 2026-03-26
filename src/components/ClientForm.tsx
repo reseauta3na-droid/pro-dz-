@@ -19,6 +19,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onSave, onC
     nif: initialData?.nif || '',
     nis: initialData?.nis || '',
     bankAccount: initialData?.bankAccount || '',
+    additionalInfo: initialData?.additionalInfo || '',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -86,6 +87,14 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onSave, onC
         onChange={(e) => setFormData({ ...formData, bankAccount: e.target.value })}
         icon={<CreditCard className="h-4 w-4" />}
         placeholder="ex: 007 99999 0000123456 78"
+      />
+
+      <Input
+        label="Informations Supplémentaires"
+        value={formData.additionalInfo}
+        onChange={(e) => setFormData({ ...formData, additionalInfo: e.target.value })}
+        icon={<FileText className="h-4 w-4" />}
+        placeholder="Autres informations..."
       />
 
       <div className="flex justify-end space-x-3 pt-4">

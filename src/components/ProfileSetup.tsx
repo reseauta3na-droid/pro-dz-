@@ -17,13 +17,17 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onSave, initialEmail
     firstName: '',
     lastName: '',
     fonction: '',
+    legalStatus: 'auto-entrepreneur',
     address: '',
     phone: '',
     email: initialEmail,
     nif: '',
+    registreCommerce: '',
     carteAutoentrepreneur: '',
     socialSecurity: '',
     bankAccount: '',
+    additionalInfo: '',
+    defaultCurrency: 'DZD',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -98,7 +102,44 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onSave, initialEmail
               required
             />
 
+            <div className="space-y-1.5">
+              <label className="text-xs font-black uppercase tracking-widest text-zinc-400">Devise par défaut</label>
+              <div className="relative">
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400">
+                  <CreditCard className="h-4 w-4" />
+                </div>
+                <select
+                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50/50 py-3 pl-12 pr-4 text-sm font-bold transition-all focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 text-zinc-900"
+                  value={formData.defaultCurrency}
+                  onChange={(e) => setFormData({ ...formData, defaultCurrency: e.target.value as any })}
+                >
+                  <option value="DZD">DZD (Dinar Algérien)</option>
+                  <option value="EUR">EUR (Euro)</option>
+                  <option value="USD">USD (Dollar US)</option>
+                </select>
+              </div>
+            </div>
+
             <div className="grid gap-6 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-black uppercase tracking-widest text-zinc-400">Statut Légal</label>
+                <div className="flex rounded-xl bg-zinc-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, legalStatus: 'auto-entrepreneur' })}
+                    className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${formData.legalStatus === 'auto-entrepreneur' ? 'bg-white text-emerald-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
+                  >
+                    Auto-entrepreneur
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, legalStatus: 'registre-commerce' })}
+                    className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${formData.legalStatus === 'registre-commerce' ? 'bg-white text-emerald-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-700'}`}
+                  >
+                    Registre de Commerce
+                  </button>
+                </div>
+              </div>
               <Input
                 label="Numéro NIF"
                 value={formData.nif}
@@ -106,29 +147,48 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onSave, initialEmail
                 icon={<FileText className="h-4 w-4" />}
                 required
               />
-              <Input
-                label="N° Carte Auto-entrepreneur"
-                value={formData.carteAutoentrepreneur || ''}
-                onChange={(e) => setFormData({ ...formData, carteAutoentrepreneur: e.target.value })}
-                icon={<FileText className="h-4 w-4" />}
-              />
             </div>
 
             <div className="grid gap-6 sm:grid-cols-2">
+              {formData.legalStatus === 'auto-entrepreneur' ? (
+                <Input
+                  label="N° Carte Auto-entrepreneur"
+                  value={formData.carteAutoentrepreneur || ''}
+                  onChange={(e) => setFormData({ ...formData, carteAutoentrepreneur: e.target.value })}
+                  icon={<FileText className="h-4 w-4" />}
+                />
+              ) : (
+                <Input
+                  label="N° Registre de Commerce (RC)"
+                  value={formData.registreCommerce || ''}
+                  onChange={(e) => setFormData({ ...formData, registreCommerce: e.target.value })}
+                  icon={<FileText className="h-4 w-4" />}
+                  placeholder="ex: 16/00-1234567B20"
+                />
+              )}
               <Input
                 label="Sécurité Sociale (Optionnel)"
                 value={formData.socialSecurity}
                 onChange={(e) => setFormData({ ...formData, socialSecurity: e.target.value })}
                 icon={<Shield className="h-4 w-4" />}
               />
-              <Input
-                label="Numéro de Compte Bancaire (RIB/CCP)"
-                value={formData.bankAccount || ''}
-                onChange={(e) => setFormData({ ...formData, bankAccount: e.target.value })}
-                icon={<CreditCard className="h-4 w-4" />}
-                placeholder="ex: 007 99999 0000123456 78"
-              />
             </div>
+
+            <Input
+              label="Numéro de Compte Bancaire (RIB/CCP)"
+              value={formData.bankAccount || ''}
+              onChange={(e) => setFormData({ ...formData, bankAccount: e.target.value })}
+              icon={<CreditCard className="h-4 w-4" />}
+              placeholder="ex: 007 99999 0000123456 78"
+            />
+
+            <Input
+              label="Informations Supplémentaires"
+              value={formData.additionalInfo || ''}
+              onChange={(e) => setFormData({ ...formData, additionalInfo: e.target.value })}
+              icon={<FileText className="h-4 w-4" />}
+              placeholder="Autres informations..."
+            />
 
             <Button type="submit" className="w-full py-4 text-lg" size="lg">
               <Save className="mr-2 h-6 w-6" />

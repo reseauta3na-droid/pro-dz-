@@ -9,8 +9,7 @@ import { numberToWords } from '../utils/numberToWords';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { QRCodeSVG } from 'qrcode.react';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+import { generateInvoicePDF } from '../utils/pdfGenerator';
 
 interface InvoicePreviewProps {
   invoice: Invoice;
@@ -30,27 +29,18 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   const invoiceRef = useRef<HTMLDivElement>(null);
 
   const handleDownloadPDF = async () => {
-    if (!invoiceRef.current) return;
-
-    const canvas = await html2canvas(invoiceRef.current, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-    });
-
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'a4');
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    pdf.save(`${invoice.invoiceNumber}_${client.name}.pdf`);
+    try {
+      await generateInvoicePDF(invoice, client, technician);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Erreur lors de la génération du PDF.');
+    }
   };
 
   const handleShareWhatsApp = () => {
     const message = encodeURIComponent(
       `Bonjour, voici votre ${docLabel} ${invoice.invoiceNumber} pour le projet ${invoice.projectName}.\n` +
-      `Montant Total: ${formatCurrency(invoice.total)}\n` +
+      `Montant Total: ${formatCurrency(invoice.total, invoice.currency)}\n` +
       `Lien: ${window.location.href}`
     );
     window.open(`https://wa.me/?text=${message}`, '_blank');
@@ -62,14 +52,14 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
       `Bonjour,\n\nVeuillez trouver ci-joint les détails de votre ${docLabel.toLowerCase()}.\n\n` +
       `Numéro: ${invoice.invoiceNumber}\n` +
       `Projet: ${invoice.projectName}\n` +
-      `Montant Total: ${formatCurrency(invoice.total)}\n\n` +
+      `Montant Total: ${formatCurrency(invoice.total, invoice.currency)}\n\n` +
       `Cordialement,\n${technician.firstName} ${technician.lastName}`
     );
     window.location.href = `mailto:${client.email}?subject=${subject}&body=${body}`;
   };
 
   const docLabel = invoice.type === 'quote' ? 'Devis' : 'Facture';
-  const qrValue = `${docLabel}: ${invoice.invoiceNumber}\nDate: ${invoice.date}\nClient: ${client.name}\nProjet: ${invoice.projectName}\nTotal: ${formatCurrency(invoice.total)}`;
+  const qrValue = `${docLabel}: ${invoice.invoiceNumber}\nDate: ${invoice.date}\nClient: ${client.name}\nProjet: ${invoice.projectName}\nTotal: ${formatCurrency(invoice.total, invoice.currency)}`;
 
   return (
     <div className="space-y-6">
@@ -122,10 +112,10 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
         </div>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto bg-zinc-100/50 p-0 sm:p-8">
         <div
           ref={invoiceRef}
-          className="mx-auto w-[210mm] min-h-[297mm] bg-white p-[20mm] shadow-lg text-zinc-900 font-sans"
+          className="mx-auto w-full max-w-[210mm] min-h-[297mm] bg-white p-[10mm] sm:p-[20mm] shadow-lg text-zinc-900 font-sans"
           style={{ boxSizing: 'border-box' }}
         >
           {/* Header */}
@@ -156,12 +146,17 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                 {technician.fonction && (
                   <p className="text-sm font-bold text-emerald-600 uppercase tracking-wide">{technician.fonction}</p>
                 )}
-                <p className="text-sm text-zinc-500">{technician.address}</p>
-                <p className="text-sm text-zinc-500">{technician.phone}</p>
-                <p className="text-sm text-zinc-500">{technician.email}</p>
+                {technician.address && <p className="text-sm text-zinc-500">{technician.address}</p>}
+                {technician.phone && <p className="text-sm text-zinc-500">{technician.phone}</p>}
+                {technician.email && <p className="text-sm text-zinc-500">{technician.email}</p>}
                 <div className="mt-1 flex flex-col items-end space-y-0.5 text-[10px] font-bold text-zinc-400 uppercase">
                   {technician.nif && <span>NIF: {technician.nif}</span>}
-                  {technician.carteAutoentrepreneur && <span>Carte Auto-entrepreneur: {technician.carteAutoentrepreneur}</span>}
+                  {technician.legalStatus === 'auto-entrepreneur' ? (
+                    technician.carteAutoentrepreneur && <span>Carte Auto-entrepreneur: {technician.carteAutoentrepreneur}</span>
+                  ) : (
+                    technician.registreCommerce && <span>RC: {technician.registreCommerce}</span>
+                  )}
+                  {technician.additionalInfo && <span>{technician.additionalInfo}</span>}
                 </div>
               </div>
           </div>
@@ -173,15 +168,16 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                 {invoice.type === 'quote' ? 'Destinataire:' : 'Facturer à:'}
               </h3>
               <p className="text-lg font-bold">{client.name}</p>
-              <p className="text-sm text-zinc-500">{client.address}</p>
-              <p className="text-sm text-zinc-500">{client.phone}</p>
-              <p className="text-sm text-zinc-500">{client.email}</p>
+              {client.address && <p className="text-sm text-zinc-500">{client.address}</p>}
+              {client.phone && <p className="text-sm text-zinc-500">{client.phone}</p>}
+              {client.email && <p className="text-sm text-zinc-500">{client.email}</p>}
               <div className="mt-2 flex flex-col space-y-1 text-xs font-bold text-zinc-400 uppercase">
                 <div className="flex space-x-4">
                   {client.nif && <span>NIF: {client.nif}</span>}
                   {client.nis && <span>NIS: {client.nis}</span>}
                 </div>
                 {client.bankAccount && <span>RIB/CCP: {client.bankAccount}</span>}
+                {client.additionalInfo && <span>{client.additionalInfo}</span>}
               </div>
             </div>
             <div className="bg-zinc-50 p-6 rounded-2xl">
@@ -198,7 +194,7 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                 <th className="py-4 text-center">Unité</th>
                 <th className="py-4 text-center">Qté</th>
                 <th className="py-4 text-right">Prix Unit.</th>
-                <th className="py-4 text-right">Total</th>
+                <th className="py-4 text-right">Montant</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-50">
@@ -207,16 +203,23 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                 const days = Math.round((item.quantity - weeks) * 6);
                 const quantityDisplay = item.unit === 'week' 
                   ? `${weeks}s ${days}j`
-                  : item.quantity;
+                  : item.unit === 'forfait'
+                    ? ''
+                    : item.quantity;
 
+                const unitLabel = {
+                  'day': 'Jour',
+                  'week': 'Semaine',
+                  'forfait': 'Forfait'
+                }[item.unit];
                 return (
                   <tr key={index} className="text-sm">
                     <td className="py-6 font-bold text-zinc-900">{item.description}</td>
-                    <td className="py-6 text-center text-zinc-500">{item.unit === 'week' ? 'Semaine' : 'Jour'}</td>
+                    <td className="py-6 text-center text-zinc-500">{unitLabel}</td>
                     <td className="py-6 text-center font-bold">{quantityDisplay}</td>
-                    <td className="py-6 text-right text-zinc-500">{formatCurrency(item.pricePerUnit)}</td>
+                    <td className="py-6 text-right text-zinc-500">{formatCurrency(item.pricePerUnit, invoice.currency)}</td>
                     <td className="py-6 text-right font-black text-zinc-900">
-                      {formatCurrency(item.quantity * item.pricePerUnit)}
+                      {item.unit === 'forfait' ? formatCurrency(item.pricePerUnit, invoice.currency) : formatCurrency(item.quantity * item.pricePerUnit, invoice.currency)}
                     </td>
                   </tr>
                 );
@@ -230,36 +233,52 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">Sous-total en lettres:</p>
                 <p className="text-sm font-bold text-zinc-900 italic">
-                  {numberToWords(invoice.subTotal)}
+                  {numberToWords(invoice.subTotal, invoice.currency)}
                 </p>
               </div>
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">Arrêté à la somme de:</p>
                 <p className="text-sm font-bold text-zinc-900 italic">
-                  {numberToWords(invoice.total)}
+                  {numberToWords(invoice.total, invoice.currency)}
                 </p>
               </div>
             </div>
-            <div className="w-64 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-zinc-500">Sous-total</span>
-                <span className="font-bold">{formatCurrency(invoice.subTotal)}</span>
-              </div>
-              {invoice.taxRate > 0 && (
+              <div className="w-64 space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-zinc-500">Impôt (0.5%)</span>
-                  <span className="font-bold text-emerald-600">+{formatCurrency(invoice.subTotal * invoice.taxRate)}</span>
+                  <span className="text-zinc-500">Sous-total</span>
+                  <span className="font-bold">{formatCurrency(invoice.subTotal, invoice.currency)}</span>
                 </div>
-              )}
-              <div className="flex justify-between border-t-2 border-emerald-600 pt-4">
+                {invoice.taxRate > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Impôt IFU ({invoice.taxRate * 100}%)</span>
+                    <span className="font-bold text-emerald-600">+{formatCurrency(invoice.taxAmount, invoice.currency)}</span>
+                  </div>
+                )}
+                {invoice.tvaRate > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">TVA ({invoice.tvaRate * 100}%)</span>
+                    <span className={`font-bold ${invoice.isTvaNegative ? 'text-red-600' : 'text-emerald-600'}`}>
+                      {invoice.isTvaNegative ? '-' : '+'}{formatCurrency(invoice.tvaAmount, invoice.currency)}
+                    </span>
+                  </div>
+                )}
+                {invoice.taxRate === 0 && invoice.tvaRate === 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-zinc-500">Taxes</span>
+                    <span className="font-bold text-zinc-400 italic">
+                      {technician.legalStatus === 'auto-entrepreneur' ? 'Exonéré (Auto-entrepreneur)' : 'Non assujetti'}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between border-t-2 border-emerald-600 pt-4">
                 <span className="text-lg font-black uppercase tracking-tighter text-emerald-600">Total Net</span>
-                <span className="text-2xl font-black text-emerald-600">{formatCurrency(invoice.total)}</span>
+                <span className="text-2xl font-black text-emerald-600">{formatCurrency(invoice.total, invoice.currency)}</span>
               </div>
               {invoice.paidAmount > 0 && (
                 <>
                   <div className="flex justify-between text-sm pt-4 border-t border-zinc-100">
                     <span className="text-zinc-500">Montant Payé</span>
-                    <span className="font-bold text-emerald-600">{formatCurrency(invoice.paidAmount)}</span>
+                    <span className="font-bold text-emerald-600">{formatCurrency(invoice.paidAmount, invoice.currency)}</span>
                   </div>
                   <div className="flex justify-between text-xs text-zinc-400">
                     <span>Taux de paiement</span>
@@ -267,7 +286,7 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-zinc-500">Reste à payer</span>
-                    <span className="font-bold text-amber-600">{formatCurrency(Math.max(0, invoice.total - invoice.paidAmount))}</span>
+                    <span className="font-bold text-amber-600">{formatCurrency(Math.max(0, invoice.total - invoice.paidAmount), invoice.currency)}</span>
                   </div>
                 </>
               )}
@@ -278,7 +297,11 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
           <div className="mt-24 grid grid-cols-2 gap-12">
             <div className="space-y-6">
               <div className="text-xs text-zinc-400 italic">
-                <p>Non assujetti à la TVA.</p>
+                {technician.legalStatus === 'auto-entrepreneur' ? (
+                  <p>Exonéré de TVA (Art. 191 du Code des Taxes sur le Chiffre d'Affaires).</p>
+                ) : (
+                  <p>Assujetti à la TVA.</p>
+                )}
                 {invoice.notes && <p className="mt-2">Notes: {invoice.notes}</p>}
                 {technician.bankAccount && (
                   <div className="mt-4 p-3 rounded-xl border border-zinc-100 bg-zinc-50/50 not-italic">

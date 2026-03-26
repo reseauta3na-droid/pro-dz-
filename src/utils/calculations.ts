@@ -1,34 +1,43 @@
-import { InvoiceItem } from '../types';
+import { InvoiceItem, Currency } from '../types';
 
 export const DAYS_PER_WEEK = 6;
 
-export function calculateInvoiceTotals(items: InvoiceItem[], taxRate: number = 0.005) {
+export function calculateInvoiceTotals(items: InvoiceItem[], taxRate: number = 0, tvaRate: number = 0, isTvaNegative: boolean = false) {
   let totalDays = 0;
   let subTotal = 0;
 
   items.forEach(item => {
-    const days = item.unit === 'week' ? item.quantity * DAYS_PER_WEEK : item.quantity;
-    totalDays += days;
+    if (item.unit === 'week') {
+      totalDays += item.quantity * DAYS_PER_WEEK;
+    } else if (item.unit === 'day') {
+      totalDays += item.quantity;
+    }
+    // For 'forfait', we don't add to totalDays as they are not time-based
     subTotal += item.quantity * item.pricePerUnit;
   });
 
   const taxAmount = subTotal * taxRate;
-  const total = subTotal + taxAmount; // User requested it to be added to the invoice
+  const tvaAmount = subTotal * tvaRate;
+  const total = subTotal + taxAmount + (isTvaNegative ? -tvaAmount : tvaAmount);
 
   return {
     totalDays,
     subTotal,
     taxAmount,
+    tvaAmount,
     total
   };
 }
 
-export function formatCurrency(amount: number) {
-  if (isNaN(amount)) return '0 DA';
-  return new Intl.NumberFormat('fr-DZ', {
-    style: 'currency',
-    currency: 'DZD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
+export function formatCurrency(amount: number, currency: Currency = 'DZD') {
+  if (isNaN(amount)) return `0 ${currency === 'DZD' ? 'DA' : currency}`;
+  
+  const rounded = Math.round(amount);
+  const formatted = rounded.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  
+  if (currency === 'DZD') return `${formatted} DA`;
+  if (currency === 'EUR') return `${formatted} €`;
+  if (currency === 'USD') return `$${formatted}`;
+  
+  return `${formatted} ${currency}`;
 }

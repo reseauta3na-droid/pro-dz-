@@ -8,16 +8,22 @@
         "id": { "type": "string" },
         "firstName": { "type": "string" },
         "lastName": { "type": "string" },
+        "fonction": { "type": "string" },
+        "legalStatus": { "type": "string", "enum": ["auto-entrepreneur", "registre-commerce"] },
         "address": { "type": "string" },
         "phone": { "type": "string" },
         "email": { "type": "string" },
         "nif": { "type": "string" },
+        "registreCommerce": { "type": "string" },
+        "carteAutoentrepreneur": { "type": "string" },
         "socialSecurity": { "type": "string" },
+        "bankAccount": { "type": "string" },
         "signatureUrl": { "type": "string" },
         "stampUrl": { "type": "string" },
-        "pinCode": { "type": "string" }
+        "pinCode": { "type": "string" },
+        "defaultCurrency": { "type": "string" }
       },
-      "required": ["id", "firstName", "lastName", "email", "nif"]
+      "required": ["id", "firstName", "lastName", "email", "nif", "legalStatus"]
     },
     "Client": {
       "title": "Client",
@@ -47,8 +53,12 @@
         "technicianId": { "type": "string" },
         "status": { "type": "string", "enum": ["paid", "unpaid"] },
         "taxRate": { "type": "number" },
+        "tvaRate": { "type": "number" },
+        "isTvaNegative": { "type": "boolean" },
         "totalDays": { "type": "number" },
         "subTotal": { "type": "number" },
+        "taxAmount": { "type": "number" },
+        "tvaAmount": { "type": "number" },
         "total": { "type": "number" },
         "notes": { "type": "string" }
       },
