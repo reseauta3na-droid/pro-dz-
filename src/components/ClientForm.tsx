@@ -28,7 +28,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onSave, onC
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6 pb-20">
       <Input
         label="Nom du Client / Société"
         value={formData.name}

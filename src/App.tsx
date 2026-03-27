@@ -262,6 +262,13 @@ export default function App() {
     }
   }, [appState, profile]);
 
+  // Scroll to top on tab change
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    const main = document.querySelector('main');
+    if (main) main.scrollTo(0, 0);
+  }, [activeTab]);
+
   // Handlers
   const handleUpdateInvoiceStatus = async (invoiceId: string, status: 'paid' | 'unpaid' | 'partial', paidAmount?: number) => {
     const invoice = invoices.find(i => i.id === invoiceId);
@@ -334,8 +341,9 @@ export default function App() {
         setProfile(null);
         setInvoices([]);
         setClients([]);
+        setExpenses([]);
         localStorage.clear();
-        setAppState('setup-profile');
+        setAppState('onboarding');
       } catch (err) {
         console.error('Logout error:', err);
       }
@@ -346,6 +354,7 @@ export default function App() {
     const userId = user?.uid || 'local-user';
     const updatedProfile = { ...profile, ...newProfile, id: userId };
     setProfile(updatedProfile as UserProfile);
+    localStorage.setItem('tech_dz_profile', JSON.stringify(updatedProfile));
     
     if (user && firebase.db) {
       try {
@@ -400,32 +409,29 @@ export default function App() {
   const handleSaveExpense = async (expenseData: any) => {
     const userId = user?.uid || 'local-user';
 
+    let updatedExpenses;
     if (editingExpense?.id) {
-      const updatedExpenses = expenses.map(exp => exp.id === editingExpense.id ? { ...exp, ...expenseData } as Expense : exp);
-      setExpenses(updatedExpenses);
-      if (user && firebase.db) {
-        try {
-          const expenseToSave = updatedExpenses.find(e => e.id === editingExpense.id);
-          if (expenseToSave) {
-            await setDoc(doc(firebase.db, 'users', user.uid, 'expenses', editingExpense.id), expenseToSave);
-          }
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/expenses/${editingExpense.id}`, firebase.auth);
-        }
-      }
+      updatedExpenses = expenses.map(exp => exp.id === editingExpense.id ? { ...exp, ...expenseData } as Expense : exp);
     } else {
       const newExpense = {
         ...expenseData,
         id: Math.random().toString(36).substr(2, 9),
         technicianId: userId,
       } as Expense;
-      setExpenses([newExpense, ...expenses]);
-      if (user && firebase.db) {
-        try {
-          await setDoc(doc(firebase.db, 'users', user.uid, 'expenses', newExpense.id), newExpense);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/expenses/${newExpense.id}`, firebase.auth);
+      updatedExpenses = [newExpense, ...expenses];
+    }
+    
+    setExpenses(updatedExpenses);
+    localStorage.setItem('tech_dz_expenses', JSON.stringify(updatedExpenses));
+
+    if (user && firebase.db) {
+      try {
+        const expenseToSave = updatedExpenses.find(e => e.id === (editingExpense?.id || updatedExpenses[0].id));
+        if (expenseToSave) {
+          await setDoc(doc(firebase.db, 'users', user.uid, 'expenses', expenseToSave.id), expenseToSave);
         }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/expenses/${editingExpense?.id || 'new'}`, firebase.auth);
       }
     }
     setIsExpenseModalOpen(false);
@@ -454,6 +460,7 @@ export default function App() {
       const newClient = invoiceData.newClientData as Client;
       const updatedClients = [newClient, ...clients];
       setClients(updatedClients);
+      localStorage.setItem('tech_dz_clients', JSON.stringify(updatedClients));
       
       if (user && firebase.db) {
         try {
@@ -471,6 +478,7 @@ export default function App() {
     if (editingInvoice?.id) {
       const updatedInvoices = invoices.map(inv => inv.id === editingInvoice.id ? { ...inv, ...finalInvoiceData, technicianId: user?.uid || inv.technicianId } as Invoice : inv);
       setInvoices(updatedInvoices);
+      localStorage.setItem('tech_dz_invoices', JSON.stringify(updatedInvoices));
       
       if (user && firebase.db) {
         try {
@@ -488,7 +496,9 @@ export default function App() {
         id: Math.random().toString(36).substr(2, 9),
         technicianId: user?.uid || 'default',
       } as Invoice;
-      setInvoices([newInvoice, ...invoices]);
+      const updatedInvoices = [newInvoice, ...invoices];
+      setInvoices(updatedInvoices);
+      localStorage.setItem('tech_dz_invoices', JSON.stringify(updatedInvoices));
       
       if (user && firebase.db) {
         try {
@@ -503,33 +513,28 @@ export default function App() {
   };
 
   const handleSaveClient = async (clientData: Partial<Client>) => {
+    let updatedClients;
     if (editingClient?.id) {
-      const updatedClients = clients.map(c => c.id === editingClient.id ? { ...c, ...clientData } as Client : c);
-      setClients(updatedClients);
-      
-      if (user && firebase.db) {
-        try {
-          const clientToSave = updatedClients.find(c => c.id === editingClient.id);
-          if (clientToSave) {
-            await setDoc(doc(firebase.db, 'users', user.uid, 'clients', editingClient.id), clientToSave);
-          }
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/clients/${editingClient.id}`, firebase.auth);
-        }
-      }
+      updatedClients = clients.map(c => c.id === editingClient.id ? { ...c, ...clientData } as Client : c);
     } else {
       const newClient = {
         ...clientData,
         id: Math.random().toString(36).substr(2, 9),
       } as Client;
-      setClients([newClient, ...clients]);
-      
-      if (user && firebase.db) {
-        try {
-          await setDoc(doc(firebase.db, 'users', user.uid, 'clients', newClient.id), newClient);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/clients/${newClient.id}`, firebase.auth);
+      updatedClients = [newClient, ...clients];
+    }
+    
+    setClients(updatedClients);
+    localStorage.setItem('tech_dz_clients', JSON.stringify(updatedClients));
+    
+    if (user && firebase.db) {
+      try {
+        const clientToSave = updatedClients.find(c => c.id === (editingClient?.id || updatedClients[updatedClients.length - 1].id));
+        if (clientToSave) {
+          await setDoc(doc(firebase.db, 'users', user.uid, 'clients', clientToSave.id), clientToSave);
         }
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}/clients/${editingClient?.id || 'new'}`, firebase.auth);
       }
     }
     setIsClientModalOpen(false);

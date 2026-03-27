@@ -110,7 +110,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, technician, i
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
+    <form onSubmit={handleSubmit} className="space-y-8 pb-32">
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Left Column: General Info */}
         <div className="lg:col-span-2 space-y-6">

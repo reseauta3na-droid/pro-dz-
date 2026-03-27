@@ -110,7 +110,7 @@ export const Layout: React.FC<LayoutProps> = ({
       </aside>
 
       {/* Main content */}
-      <main className="relative flex-1 overflow-y-auto pb-24 sm:pb-0">
+      <main className="relative flex-1 overflow-y-auto pb-32 sm:pb-0">
         <header className="sticky top-0 z-30 border-b border-zinc-100 bg-white/80 px-6 py-4 backdrop-blur-md sm:hidden">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
