@@ -1,6 +1,7 @@
 import { initializeApp, FirebaseApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User, Auth } from 'firebase/auth';
 import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where, orderBy, getDocFromServer, FirestoreError, Firestore, enableMultiTabIndexedDbPersistence, enableIndexedDbPersistence } from 'firebase/firestore';
+import { getAnalytics, logEvent, Analytics, isSupported } from 'firebase/analytics';
 
 // Standard Firebase error handling for this environment
 export enum OperationType {
@@ -57,15 +58,14 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 let app: FirebaseApp | null = null;
 let db: Firestore | null = null;
 let auth: Auth | null = null;
+let analytics: Analytics | null = null;
 let isInitialized = false;
 
 export async function getFirebase() {
-  if (isInitialized) return { app, db, auth };
+  if (isInitialized) return { app, db, auth, analytics };
   
   try {
     // Try to load config from the root
-    // In Vite, we can use / prefix for public or relative for source
-    // But since it's a JSON file we might need to fetch it if import fails
     let firebaseConfig;
     try {
       const response = await fetch('/firebase-applet-config.json');
@@ -99,13 +99,25 @@ export async function getFirebase() {
     }
 
     auth = getAuth(app);
+
+    // Initialize Analytics if supported
+    try {
+      const analyticsSupported = await isSupported();
+      if (analyticsSupported) {
+        analytics = getAnalytics(app);
+        console.log('Firebase Analytics initialized');
+      }
+    } catch (e) {
+      console.warn('Firebase Analytics not supported in this environment:', e);
+    }
+
     isInitialized = true;
     console.log('Firebase initialized successfully');
   } catch (e) {
     console.error('Firebase initialization failed:', e);
   }
   
-  return { app, db, auth };
+  return { app, db, auth, analytics };
 }
 
 export const loginWithGoogle = async () => {

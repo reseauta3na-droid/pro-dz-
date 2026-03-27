@@ -27,6 +27,7 @@ import { ExpenseList } from './components/ExpenseList';
 import { ExpenseForm } from './components/ExpenseForm';
 import { startOfMonth, endOfMonth, format, isWithinInterval, subMonths } from 'date-fns';
 import { getFirebase, handleFirestoreError, OperationType, loginWithGoogle, logout, testConnection } from './lib/firebase';
+import { trackPageView, trackLogin, trackLogout, trackEvent, trackInvoiceCreated, trackQuoteCreated } from './lib/analytics';
 import { onAuthStateChanged, User, Auth } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, onSnapshot, query, Firestore, deleteDoc } from 'firebase/firestore';
 
@@ -45,6 +46,15 @@ export default function App() {
   const [firebase, setFirebase] = useState<{ auth: Auth | null, db: Firestore | null }>({ auth: null, db: null });
 
   const [isInitialSyncDone, setIsInitialSyncDone] = useState(false);
+
+  // Track page views
+  useEffect(() => {
+    if (appState === 'ready') {
+      trackPageView(activeTab);
+    } else {
+      trackPageView(appState);
+    }
+  }, [activeTab, appState]);
 
   // Initial data load from localStorage
   useEffect(() => {
@@ -480,9 +490,20 @@ export default function App() {
     }
   };
 
+  const handleLogin = async () => {
+    try {
+      await loginWithGoogle();
+      trackLogin('google');
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('Erreur lors de la connexion avec Google.');
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await logout();
+      trackLogout();
       setUser(null);
       setProfile(null);
       setInvoices([]);
@@ -501,6 +522,8 @@ export default function App() {
     setProfile(updatedProfile as UserProfile);
     localStorage.setItem('tech_dz_profile', JSON.stringify(updatedProfile));
     
+    trackEvent('profile_updated', { user_id: userId });
+
     if (user && firebase.db) {
       try {
         await setDoc(doc(firebase.db, 'users', user.uid), updatedProfile);
@@ -576,6 +599,7 @@ export default function App() {
     let updatedExpenses;
     if (editingExpense?.id) {
       updatedExpenses = expenses.map(exp => exp.id === editingExpense.id ? { ...exp, ...expenseData } as Expense : exp);
+      trackEvent('expense_updated', { expense_id: editingExpense.id });
     } else {
       const newExpense = {
         ...expenseData,
@@ -583,6 +607,7 @@ export default function App() {
         technicianId: userId,
       } as Expense;
       updatedExpenses = [newExpense, ...expenses];
+      trackEvent('expense_created', { category: newExpense.category, amount: newExpense.amount });
     }
     
     setExpenses(updatedExpenses);
@@ -644,6 +669,15 @@ export default function App() {
       setInvoices(updatedInvoices);
       localStorage.setItem('tech_dz_invoices', JSON.stringify(updatedInvoices));
       
+      const invoiceToSave = updatedInvoices.find(i => i.id === editingInvoice.id);
+      if (invoiceToSave) {
+        if (invoiceToSave.type === 'quote') {
+          trackQuoteCreated(invoiceToSave.total, invoiceToSave.currency);
+        } else {
+          trackInvoiceCreated(invoiceToSave.total, invoiceToSave.currency);
+        }
+      }
+
       if (user && firebase.db) {
         try {
           const invoiceToSave = updatedInvoices.find(i => i.id === editingInvoice.id);
@@ -660,6 +694,13 @@ export default function App() {
         id: Math.random().toString(36).substr(2, 9),
         technicianId: user?.uid || 'default',
       } as Invoice;
+
+      if (newInvoice.type === 'quote') {
+        trackQuoteCreated(newInvoice.total, newInvoice.currency);
+      } else {
+        trackInvoiceCreated(newInvoice.total, newInvoice.currency);
+      }
+
       const updatedInvoices = [newInvoice, ...invoices];
       setInvoices(updatedInvoices);
       localStorage.setItem('tech_dz_invoices', JSON.stringify(updatedInvoices));
@@ -680,12 +721,14 @@ export default function App() {
     let updatedClients;
     if (editingClient?.id) {
       updatedClients = clients.map(c => c.id === editingClient.id ? { ...c, ...clientData } as Client : c);
+      trackEvent('client_updated', { client_id: editingClient.id });
     } else {
       const newClient = {
         ...clientData,
         id: Math.random().toString(36).substr(2, 9),
       } as Client;
       updatedClients = [newClient, ...clients];
+      trackEvent('client_created', { client_id: newClient.id });
     }
     
     setClients(updatedClients);
@@ -782,10 +825,10 @@ export default function App() {
   }
 
   if (appState === 'onboarding') {
-    return <Onboarding onNext={() => setAppState('setup-profile')} onLogin={loginWithGoogle} />;
+    return <Onboarding onNext={() => setAppState('setup-profile')} onLogin={handleLogin} />;
   }
 
-  if (appState === 'setup-profile') return <ProfileSetup onSave={handleSaveProfile} onLogin={loginWithGoogle} initialEmail={user?.email || ""} />;
+  if (appState === 'setup-profile') return <ProfileSetup onSave={handleSaveProfile} onLogin={handleLogin} initialEmail={user?.email || ""} />;
   if (appState === 'setup-pin') return <PinSetup onSave={handleSavePin} />;
   if (appState === 'locked' && profile?.pinCode) return <PinLock correctPin={profile.pinCode} onSuccess={() => setAppState('ready')} />;
 
@@ -890,8 +933,8 @@ export default function App() {
                 }
               }
             }}
-            onLogin={loginWithGoogle}
-            onLogout={logout}
+            onLogin={handleLogin}
+            onLogout={handleLogout}
           />
         )}
         {activeTab === 'settings' && (
