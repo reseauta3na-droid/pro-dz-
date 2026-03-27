@@ -44,6 +44,8 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [firebase, setFirebase] = useState<{ auth: Auth | null, db: Firestore | null }>({ auth: null, db: null });
 
+  const [isInitialSyncDone, setIsInitialSyncDone] = useState(false);
+
   // Monitor online status
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -86,40 +88,110 @@ export default function App() {
     if (!firebase.auth) return;
     const unsubscribe = onAuthStateChanged(firebase.auth, (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        // If user just logged in, we'll handle state transition in the sync effect
+      } else {
+        // If logged out, check local storage to decide state
+        const savedProfile = localStorage.getItem('tech_dz_profile');
+        if (savedProfile) {
+          setAppState('locked');
+        } else {
+          setAppState('onboarding');
+        }
+      }
     });
     return () => unsubscribe();
   }, [firebase.auth]);
 
+  // Function to sync local data to cloud
+  const syncLocalToCloud = async (userId: string, db: Firestore) => {
+    const localProfile = localStorage.getItem('tech_dz_profile');
+    const localInvoices = localStorage.getItem('tech_dz_invoices');
+    const localClients = localStorage.getItem('tech_dz_clients');
+    const localExpenses = localStorage.getItem('tech_dz_expenses');
+
+    if (localProfile) {
+      const parsed = JSON.parse(localProfile);
+      await setDoc(doc(db, 'users', userId), { ...parsed, id: userId }, { merge: true });
+    }
+
+    if (localClients) {
+      const parsed = JSON.parse(localClients) as Client[];
+      for (const client of parsed) {
+        await setDoc(doc(db, 'users', userId, 'clients', client.id), client, { merge: true });
+      }
+    }
+
+    if (localInvoices) {
+      const parsed = JSON.parse(localInvoices) as Invoice[];
+      for (const invoice of parsed) {
+        await setDoc(doc(db, 'users', userId, 'invoices', invoice.id), { ...invoice, technicianId: userId }, { merge: true });
+      }
+    }
+
+    if (localExpenses) {
+      const parsed = JSON.parse(localExpenses) as Expense[];
+      for (const expense of parsed) {
+        await setDoc(doc(db, 'users', userId, 'expenses', expense.id), { ...expense, technicianId: userId }, { merge: true });
+      }
+    }
+  };
+
   // Sync data from Firestore when user logs in
   useEffect(() => {
-    if (!user || !firebase.db || !firebase.auth) return;
+    if (!user || !firebase.db || !firebase.auth) {
+      setIsInitialSyncDone(false);
+      return;
+    }
 
     setIsSyncing(true);
     const userDocRef = doc(firebase.db, 'users', user.uid);
     
-    // Load profile
-    getDoc(userDocRef).then((docSnap) => {
-      if (docSnap.exists()) {
-        const cloudProfile = docSnap.data() as UserProfile;
-        setProfile(prev => ({ ...prev, ...cloudProfile }));
-        if (cloudProfile.pinCode) {
-          setAppState('locked');
+    // Load profile and handle initial sync
+    const initSync = async () => {
+      try {
+        const docSnap = await getDoc(userDocRef);
+        if (docSnap.exists()) {
+          const cloudProfile = docSnap.data() as UserProfile;
+          setProfile(prev => ({ ...prev, ...cloudProfile }));
+          localStorage.setItem('tech_dz_profile', JSON.stringify({ ...(profile || {}), ...cloudProfile }));
+          
+          if (cloudProfile.pinCode) {
+            setAppState('locked');
+          } else {
+            setAppState('ready');
+          }
         } else {
-          setAppState('ready');
+          // New user or no cloud profile, check if we have local data to sync
+          const localProfile = localStorage.getItem('tech_dz_profile');
+          if (localProfile) {
+            await syncLocalToCloud(user.uid, firebase.db!);
+            setAppState('ready');
+          } else {
+            setAppState('setup-profile');
+          }
         }
-      } else {
-        setAppState('onboarding');
+        setIsInitialSyncDone(true);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.GET, `users/${user.uid}`, firebase.auth);
+      } finally {
+        setIsSyncing(false);
       }
-    }).catch(err => handleFirestoreError(err, OperationType.GET, `users/${user.uid}`, firebase.auth));
+    };
+
+    initSync();
+  }, [user, firebase.db, firebase.auth]);
+
+  // Listen for data changes only after initial sync is done
+  useEffect(() => {
+    if (!user || !firebase.db || !firebase.auth || !isInitialSyncDone) return;
 
     // Listen for clients
     const clientsQuery = query(collection(firebase.db, 'users', user.uid, 'clients'));
     const unsubscribeClients = onSnapshot(clientsQuery, { includeMetadataChanges: true }, (snapshot) => {
       const cloudClients = snapshot.docs.map(doc => doc.data() as Client);
-      if (cloudClients.length > 0) {
-        setClients(cloudClients);
-        localStorage.setItem('tech_dz_clients', JSON.stringify(cloudClients));
-      }
+      setClients(cloudClients);
+      localStorage.setItem('tech_dz_clients', JSON.stringify(cloudClients));
       setIsSyncing(snapshot.metadata.hasPendingWrites);
     }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/clients`, firebase.auth));
 
@@ -127,10 +199,8 @@ export default function App() {
     const invoicesQuery = query(collection(firebase.db, 'users', user.uid, 'invoices'));
     const unsubscribeInvoices = onSnapshot(invoicesQuery, { includeMetadataChanges: true }, (snapshot) => {
       const cloudInvoices = snapshot.docs.map(doc => doc.data() as Invoice);
-      if (cloudInvoices.length > 0) {
-        setInvoices(cloudInvoices);
-        localStorage.setItem('tech_dz_invoices', JSON.stringify(cloudInvoices));
-      }
+      setInvoices(cloudInvoices);
+      localStorage.setItem('tech_dz_invoices', JSON.stringify(cloudInvoices));
       setIsSyncing(snapshot.metadata.hasPendingWrites);
     }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/invoices`, firebase.auth));
 
@@ -138,10 +208,8 @@ export default function App() {
     const expensesQuery = query(collection(firebase.db, 'users', user.uid, 'expenses'));
     const unsubscribeExpenses = onSnapshot(expensesQuery, { includeMetadataChanges: true }, (snapshot) => {
       const cloudExpenses = snapshot.docs.map(doc => doc.data() as Expense);
-      if (cloudExpenses.length > 0) {
-        setExpenses(cloudExpenses);
-        localStorage.setItem('tech_dz_expenses', JSON.stringify(cloudExpenses));
-      }
+      setExpenses(cloudExpenses);
+      localStorage.setItem('tech_dz_expenses', JSON.stringify(cloudExpenses));
       setIsSyncing(snapshot.metadata.hasPendingWrites);
     }, (err) => handleFirestoreError(err, OperationType.LIST, `users/${user.uid}/expenses`, firebase.auth));
 
@@ -150,7 +218,7 @@ export default function App() {
       unsubscribeInvoices();
       unsubscribeExpenses();
     };
-  }, [user, firebase.db, firebase.auth]);
+  }, [user, firebase.db, firebase.auth, isInitialSyncDone]);
 
   // Load data from localStorage
   useEffect(() => {
@@ -619,7 +687,7 @@ export default function App() {
     return <Onboarding onNext={() => setAppState('setup-profile')} onLogin={loginWithGoogle} />;
   }
 
-  if (appState === 'setup-profile') return <ProfileSetup onSave={handleSaveProfile} onLogin={loginWithGoogle} initialEmail="" />;
+  if (appState === 'setup-profile') return <ProfileSetup onSave={handleSaveProfile} onLogin={loginWithGoogle} initialEmail={user?.email || ""} />;
   if (appState === 'setup-pin') return <PinSetup onSave={handleSavePin} />;
   if (appState === 'locked' && profile?.pinCode) return <PinLock correctPin={profile.pinCode} onSuccess={() => setAppState('ready')} />;
 

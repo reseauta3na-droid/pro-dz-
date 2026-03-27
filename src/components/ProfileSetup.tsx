@@ -31,6 +31,12 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onSave, onLogin, ini
     defaultCurrency: 'DZD',
   });
 
+  React.useEffect(() => {
+    if (initialEmail && !formData.email) {
+      setFormData(prev => ({ ...prev, email: initialEmail }));
+    }
+  }, [initialEmail]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
