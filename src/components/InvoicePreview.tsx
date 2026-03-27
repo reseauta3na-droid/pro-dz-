@@ -176,6 +176,10 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                   {client.nif && <span>NIF: {client.nif}</span>}
                   {client.nis && <span>NIS: {client.nis}</span>}
                 </div>
+                <div className="flex space-x-4">
+                  {client.rc && <span>RC: {client.rc}</span>}
+                  {client.ai && <span>AI: {client.ai}</span>}
+                </div>
                 {client.bankAccount && <span>RIB/CCP: {client.bankAccount}</span>}
                 {client.additionalInfo && <span>{client.additionalInfo}</span>}
               </div>

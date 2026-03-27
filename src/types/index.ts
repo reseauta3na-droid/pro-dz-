@@ -29,6 +29,8 @@ export interface Client {
   email: string;
   nif?: string;
   nis?: string; // Numéro d'Identification Statistique
+  rc?: string; // Registre de Commerce
+  ai?: string; // Article d'Imposition
   bankAccount?: string;
   additionalInfo?: string;
 }

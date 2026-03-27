@@ -334,19 +334,17 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    if (window.confirm('Voulez-vous vraiment vous déconnecter ?')) {
-      try {
-        await logout();
-        setUser(null);
-        setProfile(null);
-        setInvoices([]);
-        setClients([]);
-        setExpenses([]);
-        localStorage.clear();
-        setAppState('onboarding');
-      } catch (err) {
-        console.error('Logout error:', err);
-      }
+    try {
+      await logout();
+      setUser(null);
+      setProfile(null);
+      setInvoices([]);
+      setClients([]);
+      setExpenses([]);
+      localStorage.clear();
+      setAppState('onboarding');
+    } catch (err) {
+      console.error('Logout error:', err);
     }
   };
 

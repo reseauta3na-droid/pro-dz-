@@ -107,22 +107,23 @@ service cloud.firestore {
     function isValidUserProfile(data) {
       return hasRequiredFields(['id', 'firstName', 'lastName', 'email', 'nif', 'legalStatus']) &&
              data.id == request.auth.uid &&
-             data.email == request.auth.token.email &&
-             data.firstName is string && data.firstName.size() > 0 && data.firstName.size() <= 50 &&
-             data.lastName is string && data.lastName.size() > 0 && data.lastName.size() <= 50 &&
+             data.firstName is string && data.firstName.size() > 0 && data.firstName.size() <= 100 &&
+             data.lastName is string && data.lastName.size() > 0 && data.lastName.size() <= 100 &&
              isValidEmail(data.email) &&
-             data.nif is string && data.nif.size() > 0 && data.nif.size() <= 50 &&
+             data.nif is string && data.nif.size() >= 0 && data.nif.size() <= 100 &&
              data.legalStatus in ['auto-entrepreneur', 'registre-commerce'] &&
-             (!( 'fonction' in data ) || (data.fonction is string && data.fonction.size() <= 100)) &&
-             (!( 'address' in data ) || (data.address is string && data.address.size() <= 200)) &&
-             (!( 'phone' in data ) || (data.phone is string && data.phone.size() <= 20)) &&
-             (!( 'registreCommerce' in data ) || (data.registreCommerce is string && data.registreCommerce.size() <= 50)) &&
-             (!( 'carteAutoentrepreneur' in data ) || (data.carteAutoentrepreneur is string && data.carteAutoentrepreneur.size() <= 50)) &&
-             (!( 'socialSecurity' in data ) || (data.socialSecurity is string && data.socialSecurity.size() <= 50)) &&
-             (!( 'bankAccount' in data ) || (data.bankAccount is string && data.bankAccount.size() <= 100)) &&
+             (!( 'fonction' in data ) || (data.fonction is string && data.fonction.size() <= 200)) &&
+             (!( 'address' in data ) || (data.address is string && data.address.size() <= 500)) &&
+             (!( 'phone' in data ) || (data.phone is string && data.phone.size() <= 50)) &&
+             (!( 'registreCommerce' in data ) || (data.registreCommerce is string && data.registreCommerce.size() <= 100)) &&
+             (!( 'carteAutoentrepreneur' in data ) || (data.carteAutoentrepreneur is string && data.carteAutoentrepreneur.size() <= 100)) &&
+             (!( 'socialSecurity' in data ) || (data.socialSecurity is string && data.socialSecurity.size() <= 100)) &&
+             (!( 'bankAccount' in data ) || (data.bankAccount is string && data.bankAccount.size() <= 200)) &&
+             (!( 'additionalInfo' in data ) || (data.additionalInfo is string && data.additionalInfo.size() <= 1000)) &&
+             (!( 'appIconUrl' in data ) || isValidUrl(data.appIconUrl)) &&
              (!( 'signatureUrl' in data ) || isValidUrl(data.signatureUrl)) &&
              (!( 'stampUrl' in data ) || isValidUrl(data.stampUrl)) &&
-             (!( 'pinCode' in data ) || (data.pinCode is string && data.pinCode.size() <= 10)) &&
+             (!( 'pinCode' in data ) || (data.pinCode is string && data.pinCode.size() <= 20)) &&
              (!( 'defaultCurrency' in data ) || (data.defaultCurrency in ['DZD', 'EUR', 'USD'])) &&
              (!( 'role' in data ) || (data.role in ['admin', 'user']));
     }
@@ -130,22 +131,25 @@ service cloud.firestore {
     function isValidClient(data) {
       return hasRequiredFields(['id', 'name']) &&
              data.id is string && data.id.size() > 0 &&
-             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
              (!( 'email' in data ) || isValidEmail(data.email)) &&
-             (!( 'address' in data ) || (data.address is string && data.address.size() <= 200)) &&
-             (!( 'phone' in data ) || (data.phone is string && data.phone.size() <= 20)) &&
-             (!( 'nif' in data ) || (data.nif is string && data.nif.size() <= 50)) &&
-             (!( 'nis' in data ) || (data.nis is string && data.nis.size() <= 50)) &&
-             (!( 'bankAccount' in data ) || (data.bankAccount is string && data.bankAccount.size() <= 100));
+             (!( 'address' in data ) || (data.address is string && data.address.size() <= 500)) &&
+             (!( 'phone' in data ) || (data.phone is string && data.phone.size() <= 50)) &&
+             (!( 'nif' in data ) || (data.nif is string && data.nif.size() <= 100)) &&
+             (!( 'nis' in data ) || (data.nis is string && data.nis.size() <= 100)) &&
+             (!( 'rc' in data ) || (data.rc is string && data.rc.size() <= 100)) &&
+             (!( 'ai' in data ) || (data.ai is string && data.ai.size() <= 100)) &&
+             (!( 'bankAccount' in data ) || (data.bankAccount is string && data.bankAccount.size() <= 200)) &&
+             (!( 'additionalInfo' in data ) || (data.additionalInfo is string && data.additionalInfo.size() <= 1000));
     }
 
     function isValidInvoice(data) {
-      return hasRequiredFields(['id', 'type', 'invoiceNumber', 'date', 'projectName', 'clientId', 'technicianId', 'status', 'total', 'paidAmount', 'items', 'showSignature', 'showStamp', 'taxRate', 'tvaRate', 'isTvaNegative', 'totalDays', 'subTotal', 'currency']) &&
+      return hasRequiredFields(['id', 'type', 'invoiceNumber', 'date', 'projectName', 'clientId', 'technicianId', 'status', 'total', 'paidAmount', 'items', 'showSignature', 'showStamp', 'taxRate', 'tvaRate', 'totalDays', 'subTotal', 'currency']) &&
              data.id is string && data.id.size() > 0 &&
              data.type in ['invoice', 'quote'] &&
-             data.invoiceNumber is string && data.invoiceNumber.size() > 0 && data.invoiceNumber.size() <= 50 &&
+             data.invoiceNumber is string && data.invoiceNumber.size() > 0 && data.invoiceNumber.size() <= 100 &&
              isValidDateString(data.date) &&
-             data.projectName is string && data.projectName.size() > 0 && data.projectName.size() <= 100 &&
+             data.projectName is string && data.projectName.size() > 0 && data.projectName.size() <= 200 &&
              data.technicianId == request.auth.uid &&
              data.status in ['paid', 'unpaid', 'partial'] &&
              data.total is number && data.total >= 0 &&
@@ -155,10 +159,9 @@ service cloud.firestore {
              data.showStamp is bool &&
              data.taxRate is number &&
              data.tvaRate is number &&
-             data.isTvaNegative is bool &&
              data.totalDays is number &&
              data.subTotal is number &&
-             (!( 'notes' in data ) || (data.notes is string && data.notes.size() <= 1000)) &&
+             (!( 'notes' in data ) || (data.notes is string && data.notes.size() <= 2000)) &&
              (!( 'taxAmount' in data ) || (data.taxAmount is number)) &&
              (!( 'tvaAmount' in data ) || (data.tvaAmount is number)) &&
              (!( 'currency' in data ) || (data.currency in ['DZD', 'EUR', 'USD']));
@@ -168,7 +171,7 @@ service cloud.firestore {
       return hasRequiredFields(['id', 'date', 'description', 'category', 'amount', 'currency', 'technicianId']) &&
              data.id is string && data.id.size() > 0 &&
              isValidDateString(data.date) &&
-             data.description is string && data.description.size() > 0 && data.description.size() <= 200 &&
+             data.description is string && data.description.size() > 0 && data.description.size() <= 500 &&
              data.category in ['equipment', 'transport', 'software', 'fiscal', 'other'] &&
              data.amount is number && data.amount >= 0 &&
              data.currency in ['DZD', 'EUR', 'USD'] &&

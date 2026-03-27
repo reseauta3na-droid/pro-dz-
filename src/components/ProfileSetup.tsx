@@ -52,7 +52,7 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onSave, onLogin, ini
         </div>
 
         <Card className="p-8 shadow-xl shadow-zinc-200/50">
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6 pb-32">
             <div className="grid gap-6 sm:grid-cols-3">
               <Input
                 label="Prénom"

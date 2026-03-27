@@ -24,7 +24,7 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ expense, defaultCurren
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 pb-20">
+    <form onSubmit={handleSubmit} className="space-y-6 pb-40">
       <div className="space-y-4">
         <div>
           <label className="text-xs font-black uppercase tracking-widest text-zinc-400">Description</label>

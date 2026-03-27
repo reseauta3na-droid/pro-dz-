@@ -110,6 +110,22 @@ export const generateInvoicePDF = async (invoice: Invoice, client: Client, techn
       doc.text(`NIF: ${client.nif}`, margin, clientInfoY);
       clientInfoY += 6;
     }
+    if (client.nis) {
+      doc.text(`NIS: ${client.nis}`, margin, clientInfoY);
+      clientInfoY += 6;
+    }
+    if (client.rc) {
+      doc.text(`RC: ${client.rc}`, margin, clientInfoY);
+      clientInfoY += 6;
+    }
+    if (client.ai) {
+      doc.text(`AI: ${client.ai}`, margin, clientInfoY);
+      clientInfoY += 6;
+    }
+    if (client.bankAccount) {
+      doc.text(`RIB/CCP: ${client.bankAccount}`, margin, clientInfoY);
+      clientInfoY += 6;
+    }
     if (client.additionalInfo) {
       doc.text(client.additionalInfo, margin, clientInfoY);
     }

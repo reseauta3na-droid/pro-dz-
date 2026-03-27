@@ -1,6 +1,7 @@
 import React from 'react';
-import { User, Mail, Phone, MapPin, FileText, Save, CreditCard } from 'lucide-react';
+import { User, Mail, Phone, MapPin, FileText, Save, CreditCard, Hash } from 'lucide-react';
 import { Input } from './ui/Input';
+import { TextArea } from './ui/TextArea';
 import { Button } from './ui/Button';
 import { Client } from '../types';
 
@@ -18,6 +19,8 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onSave, onC
     address: initialData?.address || '',
     nif: initialData?.nif || '',
     nis: initialData?.nis || '',
+    rc: initialData?.rc || '',
+    ai: initialData?.ai || '',
     bankAccount: initialData?.bankAccount || '',
     additionalInfo: initialData?.additionalInfo || '',
   });
@@ -28,7 +31,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onSave, onC
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 pb-20">
+    <form onSubmit={handleSubmit} className="space-y-6 pb-40">
       <Input
         label="Nom du Client / Société"
         value={formData.name}
@@ -81,6 +84,23 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onSave, onC
         />
       </div>
 
+      <div className="grid gap-6 sm:grid-cols-2">
+        <Input
+          label="RC (Registre de Commerce)"
+          value={formData.rc}
+          onChange={(e) => setFormData({ ...formData, rc: e.target.value })}
+          icon={<Hash className="h-4 w-4" />}
+          placeholder="Numéro RC"
+        />
+        <Input
+          label="AI (Article d'Imposition)"
+          value={formData.ai}
+          onChange={(e) => setFormData({ ...formData, ai: e.target.value })}
+          icon={<Hash className="h-4 w-4" />}
+          placeholder="Numéro AI"
+        />
+      </div>
+
       <Input
         label="Numéro de Compte Bancaire (RIB/CCP)"
         value={formData.bankAccount}
@@ -89,7 +109,7 @@ export const ClientForm: React.FC<ClientFormProps> = ({ initialData, onSave, onC
         placeholder="ex: 007 99999 0000123456 78"
       />
 
-      <Input
+      <TextArea
         label="Informations Supplémentaires"
         value={formData.additionalInfo}
         onChange={(e) => setFormData({ ...formData, additionalInfo: e.target.value })}
