@@ -196,9 +196,10 @@ export const generateInvoicePDF = async (invoice: Invoice, client: Client, techn
     const totalsX = pageWidth - margin - 60;
     doc.setFontSize(10);
     doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-    doc.text('Sous-total:', totalsX, finalY);
+    doc.text('Sous-total:', totalsX, currentTotalsY);
     doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
-    doc.text(formatCurrency(invoice.subTotal), pageWidth - margin, finalY, { align: 'right' });
+    doc.text(formatCurrency(invoice.subTotal), pageWidth - margin, currentTotalsY, { align: 'right' });
+    currentTotalsY += 7;
 
     if (invoice.taxRate > 0) {
       doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
@@ -230,6 +231,7 @@ export const generateInvoicePDF = async (invoice: Invoice, client: Client, techn
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
     doc.text('TOTAL:', totalsX, currentTotalsY + 5);
     doc.text(formatCurrency(invoice.total), pageWidth - margin, currentTotalsY + 5, { align: 'right' });
+    currentTotalsY += 15;
 
     // Amount in words
     doc.setFont('helvetica', 'italic');
@@ -237,28 +239,31 @@ export const generateInvoicePDF = async (invoice: Invoice, client: Client, techn
     doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
     const amountInWords = `Arrêté la présente ${invoice.type === 'quote' ? 'devis' : 'facture'} à la somme de : ${numberToWords(invoice.total)}`;
     const splitAmountInWords = doc.splitTextToSize(amountInWords, pageWidth - (margin * 2));
-    doc.text(splitAmountInWords, margin, currentTotalsY + 15);
+    doc.text(splitAmountInWords, margin, currentTotalsY);
+    currentTotalsY += (splitAmountInWords.length * 5) + 10;
 
     if (invoice.paidAmount > 0) {
-      const paidY = currentTotalsY + 30;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-      doc.text('Acompte versé:', totalsX, paidY);
+      doc.text('Acompte versé:', totalsX, currentTotalsY);
       doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
-      doc.text(formatCurrency(invoice.paidAmount), pageWidth - margin, paidY, { align: 'right' });
+      doc.text(formatCurrency(invoice.paidAmount), pageWidth - margin, currentTotalsY, { align: 'right' });
+      currentTotalsY += 7;
 
       doc.setFont('helvetica', 'bold');
-      doc.text('RESTE À PAYER:', totalsX, paidY + 8);
-      doc.text(formatCurrency(invoice.total - invoice.paidAmount), pageWidth - margin, paidY + 8, { align: 'right' });
+      doc.text('RESTE À PAYER:', totalsX, currentTotalsY);
+      doc.text(formatCurrency(invoice.total - invoice.paidAmount), pageWidth - margin, currentTotalsY, { align: 'right' });
+      currentTotalsY += 15;
     }
 
     // Notes
     if (invoice.notes || technician.legalStatus === 'auto-entrepreneur') {
+      const notesY = Math.max(finalY, currentTotalsY - (invoice.paidAmount > 0 ? 0 : 10));
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-      doc.text('NOTES', margin, finalY);
+      doc.text('NOTES', margin, notesY);
       
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
@@ -267,7 +272,7 @@ export const generateInvoicePDF = async (invoice: Invoice, client: Client, techn
       let noteText = invoice.notes || '';
       
       const splitNotes = doc.splitTextToSize(noteText, pageWidth / 2 - margin);
-      doc.text(splitNotes, margin, finalY + 7);
+      doc.text(splitNotes, margin, notesY + 7);
     }
 
     // QR Code, Signature & Stamp

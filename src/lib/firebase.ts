@@ -1,6 +1,6 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where, orderBy, getDocFromServer, FirestoreError } from 'firebase/firestore';
+import { initializeApp, FirebaseApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User, Auth } from 'firebase/auth';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where, orderBy, getDocFromServer, FirestoreError, Firestore, enableMultiTabIndexedDbPersistence, enableIndexedDbPersistence } from 'firebase/firestore';
 
 // Standard Firebase error handling for this environment
 export enum OperationType {
@@ -31,16 +31,16 @@ export interface FirestoreErrorInfo {
   }
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null, auth: any) {
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null, auth: Auth | null) {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map((provider: any) => ({
+      userId: auth?.currentUser?.uid,
+      email: auth?.currentUser?.email,
+      emailVerified: auth?.currentUser?.emailVerified,
+      isAnonymous: auth?.currentUser?.isAnonymous,
+      tenantId: auth?.currentUser?.tenantId,
+      providerInfo: auth?.currentUser?.providerData.map((provider: any) => ({
         providerId: provider.providerId,
         displayName: provider.displayName,
         email: provider.email,
@@ -54,19 +54,30 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
-let app: any, db: any, auth: any;
+let app: FirebaseApp | null = null;
+let db: Firestore | null = null;
+let auth: Auth | null = null;
 let isInitialized = false;
 
 export async function getFirebase() {
   if (isInitialized) return { app, db, auth };
   
   try {
-    const configPath = '../../firebase-applet-config.json';
-    // @ts-ignore
-    const firebaseConfig = await import(/* @vite-ignore */ configPath).then(m => m.default);
-    const { initializeApp } = await import('firebase/app');
-    const { getFirestore, enableMultiTabIndexedDbPersistence, enableIndexedDbPersistence } = await import('firebase/firestore');
-    const { getAuth } = await import('firebase/auth');
+    // Try to load config from the root
+    // In Vite, we can use / prefix for public or relative for source
+    // But since it's a JSON file we might need to fetch it if import fails
+    let firebaseConfig;
+    try {
+      const response = await fetch('/firebase-applet-config.json');
+      if (!response.ok) throw new Error('Failed to fetch config');
+      firebaseConfig = await response.json();
+    } catch (e) {
+      console.warn('Could not fetch firebase-applet-config.json from root, trying import...');
+      // @ts-ignore
+      firebaseConfig = await import('../../firebase-applet-config.json').then(m => m.default);
+    }
+
+    if (!firebaseConfig) throw new Error('No Firebase configuration found');
     
     app = initializeApp(firebaseConfig);
     db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -76,10 +87,8 @@ export async function getFirebase() {
       await enableMultiTabIndexedDbPersistence(db);
     } catch (err: any) {
       if (err.code === 'failed-precondition') {
-        // Multiple tabs open, persistence can only be enabled in one tab at a time.
         console.warn('Firestore persistence failed-precondition: Multiple tabs open');
       } else if (err.code === 'unimplemented') {
-        // The current browser does not support all of the features required to enable persistence
         console.warn('Firestore persistence unimplemented: Browser not supported');
         try {
           await enableIndexedDbPersistence(db);
@@ -91,20 +100,17 @@ export async function getFirebase() {
 
     auth = getAuth(app);
     isInitialized = true;
+    console.log('Firebase initialized successfully');
   } catch (e) {
-    console.warn('Firebase configuration not found or invalid. Please complete the setup.');
+    console.error('Firebase initialization failed:', e);
   }
   
   return { app, db, auth };
 }
 
-// For backward compatibility with existing imports
-export { db, auth };
-
 export const loginWithGoogle = async () => {
   const { auth } = await getFirebase();
   if (!auth) throw new Error('Firebase not initialized. Please check your configuration.');
-  const { GoogleAuthProvider, signInWithPopup } = await import('firebase/auth');
   const googleProvider = new GoogleAuthProvider();
   return signInWithPopup(auth, googleProvider);
 };
@@ -112,7 +118,6 @@ export const loginWithGoogle = async () => {
 export const logout = async () => {
   const { auth } = await getFirebase();
   if (!auth) throw new Error('Firebase not initialized');
-  const { signOut } = await import('firebase/auth');
   return signOut(auth);
 };
 
@@ -120,13 +125,9 @@ export async function testConnection() {
   const { db } = await getFirebase();
   if (!db) return;
   try {
-    // Try to get a non-existent document in a valid path to test connectivity
-    // We use a random ID to avoid cache and ensure a network request if possible
     await getDocFromServer(doc(db, 'heartbeat', 'test'));
+    console.log('Firestore connection test successful');
   } catch (error) {
-    if (error instanceof Error && (error.message.includes('the client is offline') || error.message.includes('unavailable'))) {
-      console.error("Please check your Firebase configuration. The client is offline or Firestore is unavailable.");
-    }
-    // We don't throw here to avoid crashing the app on startup if Firestore is just slow to connect
+    console.error("Firestore connection test failed:", error);
   }
 }

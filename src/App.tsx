@@ -46,6 +46,47 @@ export default function App() {
 
   const [isInitialSyncDone, setIsInitialSyncDone] = useState(false);
 
+  // Initial data load from localStorage
+  useEffect(() => {
+    const savedProfile = localStorage.getItem('tech_dz_profile');
+    const savedInvoices = localStorage.getItem('tech_dz_invoices');
+    const savedClients = localStorage.getItem('tech_dz_clients');
+    const savedExpenses = localStorage.getItem('tech_dz_expenses');
+
+    if (savedProfile) {
+      try {
+        const parsed = JSON.parse(savedProfile);
+        setProfile(parsed);
+        if (parsed.pinCode) {
+          setAppState('locked');
+        } else {
+          setAppState('ready');
+        }
+      } catch (e) {
+        console.error('Error parsing profile', e);
+        setAppState('onboarding');
+      }
+    } else {
+      setAppState('onboarding');
+    }
+
+    if (savedInvoices) {
+      try {
+        setInvoices(JSON.parse(savedInvoices));
+      } catch (e) { console.error('Error parsing invoices', e); }
+    }
+    if (savedClients) {
+      try {
+        setClients(JSON.parse(savedClients));
+      } catch (e) { console.error('Error parsing clients', e); }
+    }
+    if (savedExpenses) {
+      try {
+        setExpenses(JSON.parse(savedExpenses));
+      } catch (e) { console.error('Error parsing expenses', e); }
+    }
+  }, []);
+
   // Monitor online status
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -87,14 +128,22 @@ export default function App() {
   useEffect(() => {
     if (!firebase.auth) return;
     const unsubscribe = onAuthStateChanged(firebase.auth, (currentUser) => {
+      console.log('Auth state changed:', currentUser ? `User ${currentUser.uid} logged in` : 'User logged out');
       setUser(currentUser);
-      if (currentUser) {
-        // If user just logged in, we'll handle state transition in the sync effect
-      } else {
+      if (!currentUser) {
         // If logged out, check local storage to decide state
         const savedProfile = localStorage.getItem('tech_dz_profile');
         if (savedProfile) {
-          setAppState('locked');
+          try {
+            const parsed = JSON.parse(savedProfile);
+            if (parsed.pinCode) {
+              setAppState('locked');
+            } else {
+              setAppState('ready');
+            }
+          } catch (e) {
+            setAppState('onboarding');
+          }
         } else {
           setAppState('onboarding');
         }
@@ -105,35 +154,62 @@ export default function App() {
 
   // Function to sync local data to cloud
   const syncLocalToCloud = async (userId: string, db: Firestore) => {
+    console.log('Starting syncLocalToCloud for user:', userId);
     const localProfile = localStorage.getItem('tech_dz_profile');
     const localInvoices = localStorage.getItem('tech_dz_invoices');
     const localClients = localStorage.getItem('tech_dz_clients');
     const localExpenses = localStorage.getItem('tech_dz_expenses');
 
-    if (localProfile) {
-      const parsed = JSON.parse(localProfile);
-      await setDoc(doc(db, 'users', userId), { ...parsed, id: userId }, { merge: true });
-    }
-
-    if (localClients) {
-      const parsed = JSON.parse(localClients) as Client[];
-      for (const client of parsed) {
-        await setDoc(doc(db, 'users', userId, 'clients', client.id), client, { merge: true });
+    try {
+      if (localProfile) {
+        console.log('Syncing profile...');
+        const parsed = JSON.parse(localProfile);
+        await setDoc(doc(db, 'users', userId), { ...parsed, id: userId }, { merge: true });
       }
-    }
 
-    if (localInvoices) {
-      const parsed = JSON.parse(localInvoices) as Invoice[];
-      for (const invoice of parsed) {
-        await setDoc(doc(db, 'users', userId, 'invoices', invoice.id), { ...invoice, technicianId: userId }, { merge: true });
+      if (localClients) {
+        console.log('Syncing clients...');
+        const parsed = JSON.parse(localClients) as Client[];
+        for (const client of parsed) {
+          await setDoc(doc(db, 'users', userId, 'clients', client.id), client, { merge: true });
+        }
       }
-    }
 
-    if (localExpenses) {
-      const parsed = JSON.parse(localExpenses) as Expense[];
-      for (const expense of parsed) {
-        await setDoc(doc(db, 'users', userId, 'expenses', expense.id), { ...expense, technicianId: userId }, { merge: true });
+      if (localInvoices) {
+        console.log('Syncing invoices...');
+        const parsed = JSON.parse(localInvoices) as Invoice[];
+        for (const invoice of parsed) {
+          await setDoc(doc(db, 'users', userId, 'invoices', invoice.id), { ...invoice, technicianId: userId }, { merge: true });
+        }
       }
+
+      if (localExpenses) {
+        console.log('Syncing expenses...');
+        const parsed = JSON.parse(localExpenses) as Expense[];
+        for (const expense of parsed) {
+          await setDoc(doc(db, 'users', userId, 'expenses', expense.id), { ...expense, technicianId: userId }, { merge: true });
+        }
+      }
+      console.log('syncLocalToCloud completed successfully');
+    } catch (error) {
+      console.error('Error in syncLocalToCloud:', error);
+      throw error;
+    }
+  };
+
+  const handleManualSync = async () => {
+    if (!user || !firebase.db) return;
+    setIsSyncing(true);
+    try {
+      await syncLocalToCloud(user.uid, firebase.db);
+      setShowNotification({
+        title: 'Synchronisation réussie',
+        message: 'Vos données ont été sauvegardées dans le cloud.'
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`, firebase.auth);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -153,8 +229,11 @@ export default function App() {
         const docSnap = await getDoc(userDocRef);
         if (docSnap.exists()) {
           const cloudProfile = docSnap.data() as UserProfile;
-          setProfile(prev => ({ ...prev, ...cloudProfile }));
-          localStorage.setItem('tech_dz_profile', JSON.stringify({ ...(profile || {}), ...cloudProfile }));
+          setProfile(prev => {
+            const merged = { ...(prev || {}), ...cloudProfile };
+            localStorage.setItem('tech_dz_profile', JSON.stringify(merged));
+            return merged;
+          });
           
           if (cloudProfile.pinCode) {
             setAppState('locked');
@@ -437,17 +516,36 @@ export default function App() {
     }
   };
 
-  const handleSavePin = (pin: string) => {
+  const handleSavePin = async (pin: string) => {
     if (profile) {
       const updatedProfile = { ...profile, pinCode: pin };
       setProfile(updatedProfile);
+      localStorage.setItem('tech_dz_profile', JSON.stringify(updatedProfile));
+      
+      if (user && firebase.db) {
+        try {
+          await setDoc(doc(firebase.db, 'users', user.uid), updatedProfile);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, firebase.auth);
+        }
+      }
       setAppState('ready');
     }
   };
 
-  const handleUpdateIcon = (url: string) => {
+  const handleUpdateIcon = async (url: string) => {
     if (profile) {
-      setProfile({ ...profile, appIconUrl: url });
+      const updatedProfile = { ...profile, appIconUrl: url };
+      setProfile(updatedProfile);
+      localStorage.setItem('tech_dz_profile', JSON.stringify(updatedProfile));
+
+      if (user && firebase.db) {
+        try {
+          await setDoc(doc(firebase.db, 'users', user.uid), updatedProfile);
+        } catch (err) {
+          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, firebase.auth);
+        }
+      }
     }
   };
 
@@ -800,11 +898,14 @@ export default function App() {
           <Settings
             pinCode={profile?.pinCode || ''}
             appIconUrl={profile?.appIconUrl}
+            isLoggedIn={!!user}
             onUpdatePin={handleSavePin}
             onUpdateIcon={handleUpdateIcon}
             onClearData={handleClearData}
             onExportData={handleExportData}
             onImportData={handleImportData}
+            onSyncCloud={handleManualSync}
+            isSyncing={isSyncing}
             canInstall={!!deferredPrompt}
             onInstall={handleInstallApp}
           />

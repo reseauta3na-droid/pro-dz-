@@ -34,6 +34,10 @@ export const Profile: React.FC<ProfileProps> = ({
 }) => {
   const [formData, setFormData] = React.useState<Technician>(profile);
 
+  React.useEffect(() => {
+    setFormData(profile);
+  }, [profile]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);

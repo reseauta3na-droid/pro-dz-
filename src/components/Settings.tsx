@@ -13,27 +13,46 @@ interface SettingsProps {
   pinCode: string;
   appIconUrl?: string;
   canInstall?: boolean;
+  isLoggedIn?: boolean;
   onUpdatePin: (pin: string) => void;
   onUpdateIcon: (url: string) => void;
   onInstall?: () => void;
   onClearData: () => void;
   onExportData: () => void;
   onImportData: (data: string) => void;
+  onSyncCloud?: () => void;
+  isSyncing?: boolean;
 }
 
 export const Settings: React.FC<SettingsProps> = ({
   pinCode,
   appIconUrl,
   canInstall,
+  isLoggedIn,
   onUpdatePin,
   onUpdateIcon,
   onInstall,
   onClearData,
   onExportData,
   onImportData,
+  onSyncCloud,
+  isSyncing: externalIsSyncing,
 }) => {
   const [newPin, setNewPin] = React.useState(pinCode);
   const [isGeneratingIcon, setIsGeneratingIcon] = React.useState(false);
+  const [localIsSyncing, setLocalIsSyncing] = React.useState(false);
+
+  const isSyncing = externalIsSyncing || localIsSyncing;
+
+  const handleSyncCloud = async () => {
+    if (!onSyncCloud) return;
+    setLocalIsSyncing(true);
+    try {
+      await onSyncCloud();
+    } finally {
+      setLocalIsSyncing(false);
+    }
+  };
 
   const handleUpdatePin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -243,12 +262,35 @@ export const Settings: React.FC<SettingsProps> = ({
               </div>
               <h4 className="text-lg font-bold text-zinc-900">Sauvegarde Automatique</h4>
               <p className="mx-auto max-w-xs text-zinc-500">
-                Vos données sont synchronisées localement et peuvent être exportées pour sauvegarde.
+                {isLoggedIn 
+                  ? "Vos données sont synchronisées avec votre compte Google."
+                  : "Connectez-vous pour synchroniser vos données dans le cloud."}
               </p>
-              <div className="mt-6 flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-emerald-600">
-                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Synchronisé</span>
-              </div>
+              {isLoggedIn ? (
+                <div className="mt-6 flex flex-col items-center space-y-4 w-full max-w-xs">
+                  <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-emerald-600">
+                    <div className={`h-2 w-2 rounded-full bg-emerald-500 ${isSyncing ? 'animate-pulse' : ''}`} />
+                    <span>{isSyncing ? 'Synchronisation...' : 'Synchronisé'}</span>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    className="w-full" 
+                    onClick={handleSyncCloud}
+                    disabled={isSyncing}
+                  >
+                    {isSyncing ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Cloud className="mr-2 h-4 w-4" />
+                    )}
+                    Forcer la synchronisation
+                  </Button>
+                </div>
+              ) : (
+                <div className="mt-6 text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                  Mode Local Uniquement
+                </div>
+              )}
             </div>
 
             <div className="flex flex-col items-center justify-center py-4 text-center border-t border-zinc-100 lg:border-t-0 lg:border-l lg:pl-8">

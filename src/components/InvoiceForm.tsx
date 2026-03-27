@@ -280,6 +280,16 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, technician, i
                   )}
                 </div>
               </div>
+
+              <div className="mt-6">
+                <Input
+                  label="Notes / Conditions de paiement"
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  icon={<FileText className="h-4 w-4" />}
+                  placeholder="ex: Paiement à la réception, validité du devis 15 jours..."
+                />
+              </div>
             </Card>
 
           {/* Items Section */}
