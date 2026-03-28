@@ -2,6 +2,8 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Eraser, Save, X } from 'lucide-react';
 import { Button } from './ui/Button';
 
+import { compressImage } from '../utils/image';
+
 interface SignaturePadProps {
   onSave: (dataUrl: string) => void;
   onCancel: () => void;
@@ -10,6 +12,7 @@ interface SignaturePadProps {
 export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, onCancel }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -28,6 +31,11 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, onCancel }) 
       if (parent) {
         canvas.width = parent.clientWidth;
         canvas.height = parent.clientHeight;
+        // Re-set styles after resize as they might be lost
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
       }
     };
 
@@ -82,10 +90,21 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, onCancel }) 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
-  const save = () => {
+  const save = async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    onSave(canvas.toDataURL('image/png'));
+    
+    setIsSaving(true);
+    try {
+      const dataUrl = canvas.toDataURL('image/png');
+      // Compress to ensure it stays small
+      const compressed = await compressImage(dataUrl, 400, 200, 0.5);
+      onSave(compressed);
+    } catch (error) {
+      console.error('Error saving signature:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -104,18 +123,18 @@ export const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, onCancel }) 
       </div>
 
       <div className="flex justify-between">
-        <Button variant="outline" size="sm" onClick={clear}>
+        <Button variant="outline" size="sm" onClick={clear} disabled={isSaving}>
           <Eraser className="mr-2 h-4 w-4" />
           Effacer
         </Button>
         <div className="flex space-x-3">
-          <Button variant="ghost" size="sm" onClick={onCancel}>
+          <Button variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}>
             <X className="mr-2 h-4 w-4" />
             Annuler
           </Button>
-          <Button size="sm" onClick={save}>
+          <Button size="sm" onClick={save} disabled={isSaving}>
             <Save className="mr-2 h-4 w-4" />
-            Enregistrer
+            {isSaving ? 'Enregistrement...' : 'Enregistrer'}
           </Button>
         </div>
       </div>

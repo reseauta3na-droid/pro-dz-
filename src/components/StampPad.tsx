@@ -2,6 +2,8 @@ import React, { useRef, useState } from 'react';
 import { Upload, X, Save, Camera } from 'lucide-react';
 import { Button } from './ui/Button';
 
+import { compressImage } from '../utils/image';
+
 interface StampPadProps {
   onSave: (dataUrl: string) => void;
   onCancel: () => void;
@@ -9,14 +11,23 @@ interface StampPadProps {
 
 export const StampPad: React.FC<StampPadProps> = ({ onSave, onCancel }) => {
   const [preview, setPreview] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview(reader.result as string);
+      reader.onloadend = async () => {
+        const dataUrl = reader.result as string;
+        try {
+          // Compress immediately after selection to save memory and ensure preview is small
+          const compressed = await compressImage(dataUrl, 400, 400, 0.5);
+          setPreview(compressed);
+        } catch (error) {
+          console.error('Error compressing image:', error);
+          setPreview(dataUrl);
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -50,20 +61,20 @@ export const StampPad: React.FC<StampPadProps> = ({ onSave, onCancel }) => {
           className="hidden"
         />
 
-        <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+        <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={isSaving}>
           <Upload className="mr-2 h-4 w-4" />
           Choisir une image
         </Button>
       </div>
 
       <div className="flex justify-end space-x-3">
-        <Button variant="ghost" size="sm" onClick={onCancel}>
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={isSaving}>
           <X className="mr-2 h-4 w-4" />
           Annuler
         </Button>
-        <Button size="sm" onClick={handleSave} disabled={!preview}>
+        <Button size="sm" onClick={handleSave} disabled={!preview || isSaving}>
           <Save className="mr-2 h-4 w-4" />
-          Enregistrer
+          {isSaving ? 'Enregistrement...' : 'Enregistrer'}
         </Button>
       </div>
     </div>

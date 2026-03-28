@@ -1,11 +1,12 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Trash2, Calculator, Calendar, User, Briefcase, FileText, CreditCard } from 'lucide-react';
+import { Plus, Trash2, Calculator, Calendar, User, Briefcase, FileText, CreditCard, Sparkles, Loader2 } from 'lucide-react';
 import { Card } from './ui/Card';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
 import { Client, InvoiceItem, Invoice, Currency, Technician } from '../types';
 import { calculateInvoiceTotals, formatCurrency } from '../utils/calculations';
+import { generateInvoiceDescription } from '../services/aiService';
 
 interface InvoiceFormProps {
   clients: Client[];
@@ -55,6 +56,26 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, technician, i
       }
     }
   }, [formData.type, initialData?.invoiceNumber]);
+
+  const [isGenerating, setIsGenerating] = React.useState<number | null>(null);
+
+  const handleAiGenerate = async (index: number) => {
+    const item = formData.items[index];
+    if (!item.description && !formData.projectName) {
+      alert("Veuillez saisir une description de base ou un nom de projet pour aider l'IA.");
+      return;
+    }
+
+    setIsGenerating(index);
+    try {
+      const suggestion = await generateInvoiceDescription(item.description, formData.projectName);
+      if (suggestion) {
+        updateItem(index, 'description', suggestion);
+      }
+    } finally {
+      setIsGenerating(null);
+    }
+  };
 
   const totals = calculateInvoiceTotals(formData.items, formData.taxRate, formData.tvaRate);
 
@@ -317,13 +338,28 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, technician, i
                       className="flex flex-col gap-4 rounded-2xl border border-zinc-100 bg-zinc-50/50 p-4 sm:flex-row sm:items-end"
                     >
                       <div className="flex-1">
-                        <Input
-                          label="Description"
-                          value={item.description}
-                          onChange={(e) => updateItem(index, 'description', e.target.value)}
-                          placeholder="ex: Chef Opérateur Son"
-                          required
-                        />
+                        <div className="relative">
+                          <Input
+                            label="Description"
+                            value={item.description}
+                            onChange={(e) => updateItem(index, 'description', e.target.value)}
+                            placeholder="ex: Chef Opérateur Son"
+                            required
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleAiGenerate(index)}
+                            disabled={isGenerating !== null}
+                            className="absolute right-3 top-[34px] text-purple-500 hover:text-purple-600 disabled:opacity-50"
+                            title="Améliorer avec l'IA"
+                          >
+                            {isGenerating === index ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Sparkles className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
                       </div>
                       <div className="w-full sm:w-32">
                         <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Unité</label>

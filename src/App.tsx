@@ -27,6 +27,7 @@ import { ExpenseList } from './components/ExpenseList';
 import { ExpenseForm } from './components/ExpenseForm';
 import { startOfMonth, endOfMonth, format, isWithinInterval, subMonths } from 'date-fns';
 import { getFirebase, handleFirestoreError, OperationType, loginWithGoogle, logout, testConnection } from './lib/firebase';
+import { compressImage } from './utils/image';
 import { trackPageView, trackLogin, trackLogout, trackEvent, trackInvoiceCreated, trackQuoteCreated } from './lib/analytics';
 import { onAuthStateChanged, User, Auth } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, onSnapshot, query, Firestore, deleteDoc } from 'firebase/firestore';
@@ -516,23 +517,46 @@ export default function App() {
     }
   };
 
-  const handleSaveProfile = async (newProfile: Technician) => {
+  const saveProfileToCloud = async (updatedProfile: UserProfile) => {
     const userId = user?.uid || 'local-user';
-    const updatedProfile = { ...profile, ...newProfile, id: userId };
-    setProfile(updatedProfile as UserProfile);
-    localStorage.setItem('tech_dz_profile', JSON.stringify(updatedProfile));
     
-    trackEvent('profile_updated', { user_id: userId });
+    // Auto-compress large images if they are in data URL format
+    let profileToSave = { ...updatedProfile };
+    try {
+      if (profileToSave.signatureUrl?.startsWith('data:image/') && profileToSave.signatureUrl.length > 50000) {
+        profileToSave.signatureUrl = await compressImage(profileToSave.signatureUrl, 400, 200, 0.5);
+      }
+      if (profileToSave.stampUrl?.startsWith('data:image/') && profileToSave.stampUrl.length > 50000) {
+        profileToSave.stampUrl = await compressImage(profileToSave.stampUrl, 400, 400, 0.5);
+      }
+      if (profileToSave.appIconUrl?.startsWith('data:image/') && profileToSave.appIconUrl.length > 50000) {
+        profileToSave.appIconUrl = await compressImage(profileToSave.appIconUrl, 256, 256, 0.5);
+      }
+    } catch (e) {
+      console.error('Error auto-compressing profile images:', e);
+    }
+
+    setProfile(profileToSave);
+    localStorage.setItem('tech_dz_profile', JSON.stringify(profileToSave));
 
     if (user && firebase.db) {
       try {
-        await setDoc(doc(firebase.db, 'users', user.uid), updatedProfile);
+        await setDoc(doc(firebase.db, 'users', user.uid), profileToSave);
       } catch (err) {
         handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, firebase.auth);
       }
     }
+    return profileToSave;
+  };
 
-    if (!updatedProfile.pinCode) {
+  const handleSaveProfile = async (newProfile: Technician) => {
+    const userId = user?.uid || 'local-user';
+    const updatedProfile = { ...profile, ...newProfile, id: userId } as UserProfile;
+    
+    const savedProfile = await saveProfileToCloud(updatedProfile);
+    trackEvent('profile_updated', { user_id: userId });
+
+    if (!savedProfile.pinCode) {
       setAppState('setup-pin');
     } else {
       setAppState('ready');
@@ -542,16 +566,7 @@ export default function App() {
   const handleSavePin = async (pin: string) => {
     if (profile) {
       const updatedProfile = { ...profile, pinCode: pin };
-      setProfile(updatedProfile);
-      localStorage.setItem('tech_dz_profile', JSON.stringify(updatedProfile));
-      
-      if (user && firebase.db) {
-        try {
-          await setDoc(doc(firebase.db, 'users', user.uid), updatedProfile);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, firebase.auth);
-        }
-      }
+      await saveProfileToCloud(updatedProfile);
       setAppState('ready');
     }
   };
@@ -559,16 +574,7 @@ export default function App() {
   const handleUpdateIcon = async (url: string) => {
     if (profile) {
       const updatedProfile = { ...profile, appIconUrl: url };
-      setProfile(updatedProfile);
-      localStorage.setItem('tech_dz_profile', JSON.stringify(updatedProfile));
-
-      if (user && firebase.db) {
-        try {
-          await setDoc(doc(firebase.db, 'users', user.uid), updatedProfile);
-        } catch (err) {
-          handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, firebase.auth);
-        }
-      }
+      await saveProfileToCloud(updatedProfile);
     }
   };
 
@@ -1039,8 +1045,10 @@ export default function App() {
           title="Signature Numérique"
         >
           <SignaturePad
-            onSave={(url) => {
-              if (profile) setProfile({ ...profile, signatureUrl: url });
+            onSave={async (url) => {
+              if (profile) {
+                await saveProfileToCloud({ ...profile, signatureUrl: url });
+              }
               setIsSignatureModalOpen(false);
             }}
             onCancel={() => setIsSignatureModalOpen(false)}
@@ -1053,8 +1061,10 @@ export default function App() {
           title="Cachet Professionnel"
         >
           <StampPad
-            onSave={(url) => {
-              if (profile) setProfile({ ...profile, stampUrl: url });
+            onSave={async (url) => {
+              if (profile) {
+                await saveProfileToCloud({ ...profile, stampUrl: url });
+              }
               setIsStampModalOpen(false);
             }}
             onCancel={() => setIsStampModalOpen(false)}
