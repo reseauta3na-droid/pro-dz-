@@ -1,6 +1,6 @@
 import { initializeApp, FirebaseApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User, Auth } from 'firebase/auth';
-import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where, orderBy, getDocFromServer, FirestoreError, Firestore, enableMultiTabIndexedDbPersistence, enableIndexedDbPersistence } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where, orderBy, getDocFromServer, FirestoreError, Firestore, initializeFirestore } from 'firebase/firestore';
 import { getAnalytics, logEvent, Analytics, isSupported } from 'firebase/analytics';
 
 // Standard Firebase error handling for this environment
@@ -60,6 +60,7 @@ let db: Firestore | null = null;
 let auth: Auth | null = null;
 let analytics: Analytics | null = null;
 let isInitialized = false;
+let cachedConfig: any = null;
 
 export async function getFirebase() {
   if (isInitialized) return { app, db, auth, analytics };
@@ -79,42 +80,37 @@ export async function getFirebase() {
 
     if (!firebaseConfig) throw new Error('No Firebase configuration found');
     
-    app = initializeApp(firebaseConfig);
-    db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+    cachedConfig = firebaseConfig;
     
-    // Enable offline persistence
-    try {
-      await enableMultiTabIndexedDbPersistence(db);
-    } catch (err: any) {
-      if (err.code === 'failed-precondition') {
-        console.warn('Firestore persistence failed-precondition: Multiple tabs open');
-      } else if (err.code === 'unimplemented') {
-        console.warn('Firestore persistence unimplemented: Browser not supported');
-        try {
-          await enableIndexedDbPersistence(db);
-        } catch (e) {
-          console.error('Failed to enable single-tab persistence', e);
-        }
-      }
-    }
+    // Check if appId is a placeholder or empty and handle it
+    const isPlaceholderAppId = !firebaseConfig.appId || 
+      firebaseConfig.appId.includes('TODO') || 
+      firebaseConfig.appId === '';
 
+    app = initializeApp(firebaseConfig);
+    
+    // Use Long Polling to bypass potential WebSocket blocking/domain issues
+    const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+    db = initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+    }, dbId);
+    
     auth = getAuth(app);
 
-    // Initialize Analytics if supported
+    // Initialize Analytics if supported and appId is valid
     try {
       const analyticsSupported = await isSupported();
-      if (analyticsSupported) {
+      if (analyticsSupported && !isPlaceholderAppId) {
         analytics = getAnalytics(app);
-        console.log('Firebase Analytics initialized');
       }
     } catch (e) {
-      console.warn('Firebase Analytics not supported in this environment:', e);
+      console.warn('Analytics not supported');
     }
 
     isInitialized = true;
-    console.log('Firebase initialized successfully');
+    console.log('Firebase initialized');
   } catch (e) {
-    console.error('Firebase initialization failed:', e);
+    console.error('Firebase init failed:', e);
   }
   
   return { app, db, auth, analytics };
@@ -124,7 +120,21 @@ export const loginWithGoogle = async () => {
   const { auth } = await getFirebase();
   if (!auth) throw new Error('Firebase not initialized. Please check your configuration.');
   const googleProvider = new GoogleAuthProvider();
-  return signInWithPopup(auth, googleProvider);
+  try {
+    return await signInWithPopup(auth, googleProvider);
+  } catch (error: any) {
+    if (error.code === 'auth/unauthorized-domain') {
+      console.error("🚨 Erreur d'authentification : Domaine non autorisé.");
+      console.error("Veuillez ajouter ce domaine dans votre Console Firebase (Authentication > Settings > Authorized domains) :");
+      console.error(window.location.hostname);
+      alert("Erreur : Ce domaine n'est pas autorisé dans votre console Firebase. Veuillez suivre les instructions dans la console de développement.");
+    } else if (error.code === 'auth/configuration-not-found') {
+      console.error("🚨 Erreur d'authentification : Google Sign-In n'est pas activé.");
+      console.error("Veuillez activer le fournisseur 'Google' dans votre Console Firebase (Authentication > Sign-in method).");
+      alert("Erreur : La connexion Google n'est pas activée dans votre console Firebase. Veuillez l'activer dans l'onglet 'Sign-in method'.");
+    }
+    throw error;
+  }
 };
 
 export const logout = async () => {
@@ -135,11 +145,22 @@ export const logout = async () => {
 
 export async function testConnection() {
   const { db } = await getFirebase();
-  if (!db) return;
+  if (!db) return false;
   try {
     await getDocFromServer(doc(db, 'heartbeat', 'test'));
     console.log('Firestore connection test successful');
-  } catch (error) {
-    console.error("Firestore connection test failed:", error);
+    return true;
+  } catch (error: any) {
+    const projectId = cachedConfig?.projectId || 'votre projet';
+    if (error.message?.includes('the client is offline')) {
+      console.error(`🚨 Erreur Firestore : Le client est hors-ligne pour le projet "${projectId}".`);
+      console.error("Ceci est généralement dû à l'une de ces 3 raisons :");
+      console.error("1. La clé API est restreinte à 'Android' uniquement dans Google Cloud Console. Elle doit autoriser les requêtes Web.");
+      console.error(`2. Le domaine '${window.location.hostname}' n'est pas autorisé dans Firebase Auth > Settings > Authorized domains.`);
+      console.error(`3. La base de données Firestore n'a pas été créée (ou n'est pas en mode test/production) dans le projet '${projectId}'.`);
+    } else {
+      console.error("Firestore connection test failed:", error);
+    }
+    return false;
   }
 }

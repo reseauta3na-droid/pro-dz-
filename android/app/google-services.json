@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "720564404380",
+    "project_id": "tech-dz-pro-fd370",
+    "storage_bucket": "tech-dz-pro-fd370.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:720564404380:android:796fb03a4c0485e0f3ed59",
+        "android_client_info": {
+          "package_name": "com.techdzpro.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC4X8P54x5jzqIRwj4RliHOLBLwm8TQ0GQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

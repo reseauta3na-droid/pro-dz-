@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Plus, Trash2, Calculator, Calendar, User, Briefcase, FileText, CreditCard, Sparkles, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Card } from './ui/Card';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
@@ -62,7 +63,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({ clients, technician, i
   const handleAiGenerate = async (index: number) => {
     const item = formData.items[index];
     if (!item.description && !formData.projectName) {
-      alert("Veuillez saisir une description de base ou un nom de projet pour aider l'IA.");
+      toast.error("Veuillez saisir une description de base ou un nom de projet pour aider l'IA.");
       return;
     }
 

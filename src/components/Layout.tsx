@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { LayoutDashboard, FileText, Users, User, Settings, LogOut, Cloud, CloudOff, RefreshCw, Receipt } from 'lucide-react';
 import { cn } from '../utils/cn';
+import { Toaster } from 'sonner';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -33,15 +34,17 @@ export const Layout: React.FC<LayoutProps> = ({
 
   return (
     <div className="flex min-h-screen flex-col bg-zinc-50 text-zinc-900 sm:flex-row">
+      <Toaster position="top-center" richColors />
       {/* Sidebar for desktop */}
       <aside className="hidden w-64 flex-col border-r border-zinc-200 bg-white p-6 sm:flex">
         <div className="mb-10 flex items-center space-x-3 px-2">
-          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-emerald-600 text-white shadow-lg shadow-emerald-200">
-            {appIconUrl ? (
-              <img src={appIconUrl} alt="Logo" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-            ) : (
-              <FileText className="h-6 w-6" />
-            )}
+          <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-white text-emerald-600 shadow-lg shadow-emerald-200">
+            <img 
+              src={appIconUrl || "/icon.svg"} 
+              alt="Logo" 
+              className="h-full w-full object-cover" 
+              referrerPolicy="no-referrer" 
+            />
           </div>
           <span className="text-xl font-black tracking-tight text-zinc-900">Tech DZ Pro</span>
         </div>
@@ -114,12 +117,13 @@ export const Layout: React.FC<LayoutProps> = ({
         <header className="sticky top-0 z-30 border-b border-zinc-100 bg-white/80 px-6 py-4 backdrop-blur-md sm:hidden">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-emerald-600 text-white">
-                {appIconUrl ? (
-                  <img src={appIconUrl} alt="Logo" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <FileText className="h-5 w-5" />
-                )}
+              <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-white text-emerald-600">
+                <img 
+                  src={appIconUrl || "/icon.svg"} 
+                  alt="Logo" 
+                  className="h-full w-full object-cover" 
+                  referrerPolicy="no-referrer" 
+                />
               </div>
               <div className="flex flex-col">
                 <span className="text-sm font-black tracking-tight">Tech DZ Pro</span>

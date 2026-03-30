@@ -50,8 +50,8 @@ export const ProfileSetup: React.FC<ProfileSetupProps> = ({ onSave, onLogin, ini
         className="w-full max-w-2xl space-y-8"
       >
         <div className="flex flex-col items-center space-y-4 text-center">
-          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-600 text-white shadow-2xl shadow-emerald-200">
-            <UserPlus className="h-10 w-10" />
+          <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-white shadow-2xl shadow-emerald-200">
+            <img src="/icon.svg" alt="Logo" className="h-full w-full object-cover" />
           </div>
           <h1 className="text-3xl font-black tracking-tight">Configurez votre profil</h1>
           <p className="text-zinc-500">Ces informations apparaîtront sur vos factures.</p>

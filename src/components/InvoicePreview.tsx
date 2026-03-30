@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { motion } from 'motion/react';
 import { Download, Printer, Share2, CheckCircle, Clock, Mail, MessageCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { Card } from './ui/Card';
 import { Button } from './ui/Button';
 import { Invoice, Client, Technician } from '../types';
@@ -33,7 +34,7 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
       await generateInvoicePDF(invoice, client, technician);
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Erreur lors de la génération du PDF.');
+      toast.error('Erreur lors de la génération du PDF.');
     }
   };
 

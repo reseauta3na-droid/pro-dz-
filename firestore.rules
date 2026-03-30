@@ -105,7 +105,8 @@ service cloud.firestore {
     // Domain Validators
     // ===============================================================
     function isValidUserProfile(data) {
-      return hasRequiredFields(['id', 'firstName', 'lastName', 'email', 'nif', 'legalStatus']) &&
+      return hasOnlyAllowedFields(['id', 'firstName', 'lastName', 'fonction', 'legalStatus', 'address', 'phone', 'email', 'nif', 'registreCommerce', 'carteAutoentrepreneur', 'socialSecurity', 'bankAccount', 'additionalInfo', 'appIconUrl', 'signatureUrl', 'stampUrl', 'pinCode', 'defaultCurrency', 'role']) &&
+             hasRequiredFields(['id', 'firstName', 'lastName', 'email', 'nif', 'legalStatus']) &&
              data.id == request.auth.uid &&
              data.firstName is string && data.firstName.size() > 0 && data.firstName.size() <= 100 &&
              data.lastName is string && data.lastName.size() > 0 && data.lastName.size() <= 100 &&
@@ -120,17 +121,18 @@ service cloud.firestore {
              (!( 'socialSecurity' in data ) || (data.socialSecurity is string && data.socialSecurity.size() <= 100)) &&
              (!( 'bankAccount' in data ) || (data.bankAccount is string && data.bankAccount.size() <= 200)) &&
              (!( 'additionalInfo' in data ) || (data.additionalInfo is string && data.additionalInfo.size() <= 1000)) &&
-             (!( 'appIconUrl' in data ) || isValidUrl(data.appIconUrl)) &&
-             (!( 'signatureUrl' in data ) || isValidUrl(data.signatureUrl)) &&
-             (!( 'stampUrl' in data ) || isValidUrl(data.stampUrl)) &&
+             (!( 'appIconUrl' in data ) || (isValidUrl(data.appIconUrl) && data.appIconUrl.size() <= 2000)) &&
+             (!( 'signatureUrl' in data ) || (isValidUrl(data.signatureUrl) && data.signatureUrl.size() <= 2000)) &&
+             (!( 'stampUrl' in data ) || (isValidUrl(data.stampUrl) && data.stampUrl.size() <= 2000)) &&
              (!( 'pinCode' in data ) || (data.pinCode is string && data.pinCode.size() <= 20)) &&
              (!( 'defaultCurrency' in data ) || (data.defaultCurrency in ['DZD', 'EUR', 'USD'])) &&
              (!( 'role' in data ) || (data.role in ['admin', 'user']));
     }
 
     function isValidClient(data) {
-      return hasRequiredFields(['id', 'name']) &&
-             data.id is string && data.id.size() > 0 &&
+      return hasOnlyAllowedFields(['id', 'name', 'address', 'phone', 'email', 'nif', 'nis', 'rc', 'ai', 'bankAccount', 'additionalInfo']) &&
+             hasRequiredFields(['id', 'name']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() <= 100 &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
              (!( 'email' in data ) || isValidEmail(data.email)) &&
              (!( 'address' in data ) || (data.address is string && data.address.size() <= 500)) &&
@@ -144,8 +146,9 @@ service cloud.firestore {
     }
 
     function isValidInvoice(data) {
-      return hasRequiredFields(['id', 'type', 'invoiceNumber', 'date', 'projectName', 'clientId', 'technicianId', 'status', 'total', 'paidAmount', 'items', 'showSignature', 'showStamp', 'taxRate', 'tvaRate', 'totalDays', 'subTotal', 'currency']) &&
-             data.id is string && data.id.size() > 0 &&
+      return hasOnlyAllowedFields(['id', 'type', 'invoiceNumber', 'date', 'projectName', 'clientId', 'technicianId', 'status', 'total', 'paidAmount', 'items', 'showSignature', 'showStamp', 'taxRate', 'tvaRate', 'totalDays', 'subTotal', 'currency', 'notes', 'taxAmount', 'tvaAmount']) &&
+             hasRequiredFields(['id', 'type', 'invoiceNumber', 'date', 'projectName', 'clientId', 'technicianId', 'status', 'total', 'paidAmount', 'items', 'showSignature', 'showStamp', 'taxRate', 'tvaRate', 'totalDays', 'subTotal', 'currency']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() <= 100 &&
              data.type in ['invoice', 'quote'] &&
              data.invoiceNumber is string && data.invoiceNumber.size() > 0 && data.invoiceNumber.size() <= 100 &&
              isValidDateString(data.date) &&
@@ -154,7 +157,7 @@ service cloud.firestore {
              data.status in ['paid', 'unpaid', 'partial'] &&
              data.total is number && data.total >= 0 &&
              data.paidAmount is number && data.paidAmount >= 0 &&
-             data.items is list &&
+             data.items is list && data.items.size() <= 100 &&
              data.showSignature is bool &&
              data.showStamp is bool &&
              data.taxRate is number &&
@@ -168,8 +171,9 @@ service cloud.firestore {
     }
 
     function isValidExpense(data) {
-      return hasRequiredFields(['id', 'date', 'description', 'category', 'amount', 'currency', 'technicianId']) &&
-             data.id is string && data.id.size() > 0 &&
+      return hasOnlyAllowedFields(['id', 'date', 'description', 'category', 'amount', 'currency', 'technicianId']) &&
+             hasRequiredFields(['id', 'date', 'description', 'category', 'amount', 'currency', 'technicianId']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() <= 100 &&
              isValidDateString(data.date) &&
              data.description is string && data.description.size() > 0 && data.description.size() <= 500 &&
              data.category in ['equipment', 'transport', 'software', 'fiscal', 'other'] &&
@@ -184,26 +188,33 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isAuthenticated() && isValidUserProfile(request.resource.data) && ((isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == 'user')) || isAdmin());
-      allow update: if isAuthenticated() && isValidUserProfile(request.resource.data) && ((isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)) || isAdmin());
+      allow update: if isAuthenticated() && isValidUserProfile(request.resource.data) && 
+                      request.resource.data.id == resource.data.id &&
+                      ((isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)) || isAdmin());
 
       match /clients/{clientId} {
         allow read: if isOwner(userId) || isAdmin();
         allow create: if isOwner(userId) && isValidClient(request.resource.data);
-        allow update: if isOwner(userId) && isValidClient(request.resource.data);
+        allow update: if isOwner(userId) && isValidClient(request.resource.data) && 
+                        request.resource.data.id == resource.data.id;
         allow delete: if isOwner(userId) || isAdmin();
       }
 
       match /invoices/{invoiceId} {
         allow read: if isOwner(userId) || isAdmin();
         allow create: if isOwner(userId) && isValidInvoice(request.resource.data);
-        allow update: if isOwner(userId) && isValidInvoice(request.resource.data);
+        allow update: if isOwner(userId) && isValidInvoice(request.resource.data) && 
+                        request.resource.data.id == resource.data.id &&
+                        request.resource.data.technicianId == resource.data.technicianId;
         allow delete: if isOwner(userId) || isAdmin();
       }
 
       match /expenses/{expenseId} {
         allow read: if isOwner(userId) || isAdmin();
         allow create: if isOwner(userId) && isValidExpense(request.resource.data);
-        allow update: if isOwner(userId) && isValidExpense(request.resource.data);
+        allow update: if isOwner(userId) && isValidExpense(request.resource.data) && 
+                        request.resource.data.id == resource.data.id &&
+                        request.resource.data.technicianId == resource.data.technicianId;
         allow delete: if isOwner(userId) || isAdmin();
       }
     }

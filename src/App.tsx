@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, Calculator, Calendar, User as UserIcon, Briefcase, FileText, CreditCard, Bell } from 'lucide-react';
+import { Plus, Trash2, Calculator, Calendar, User as UserIcon, Briefcase, FileText, CreditCard, Bell, CloudOff } from 'lucide-react';
 import { Card } from './components/ui/Card';
 import { Input } from './components/ui/Input';
 import { Button } from './components/ui/Button';
@@ -31,6 +31,8 @@ import { compressImage } from './utils/image';
 import { trackPageView, trackLogin, trackLogout, trackEvent, trackInvoiceCreated, trackQuoteCreated } from './lib/analytics';
 import { onAuthStateChanged, User, Auth } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, onSnapshot, query, Firestore, deleteDoc } from 'firebase/firestore';
+import { toast } from 'sonner';
+import { ConfirmModal } from './components/ui/ConfirmModal';
 
 type AppState = 'loading' | 'onboarding' | 'setup-profile' | 'setup-pin' | 'locked' | 'ready';
 
@@ -44,6 +46,8 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isCloudConnected, setIsCloudConnected] = useState<boolean | null>(null);
+  const [authError, setAuthError] = useState<'unauthorized-domain' | 'configuration-not-found' | null>(null);
   const [firebase, setFirebase] = useState<{ auth: Auth | null, db: Firestore | null }>({ auth: null, db: null });
 
   const [isInitialSyncDone, setIsInitialSyncDone] = useState(false);
@@ -116,7 +120,11 @@ export default function App() {
   useEffect(() => {
     getFirebase().then(({ auth, db }) => {
       setFirebase({ auth, db });
-      if (db) testConnection();
+      if (db) {
+        testConnection().then(connected => {
+          setIsCloudConnected(connected);
+        });
+      }
     });
   }, []);
   
@@ -134,6 +142,24 @@ export default function App() {
   const [editingClient, setEditingClient] = useState<Partial<Client> | null>(null);
   const [editingExpense, setEditingExpense] = useState<Partial<Expense> | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  // Confirm Modal State
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    variant?: 'danger' | 'primary';
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const openConfirm = (title: string, message: string, onConfirm: () => void, variant: 'danger' | 'primary' = 'danger') => {
+    setConfirmModal({ isOpen: true, title, message, onConfirm, variant });
+  };
 
   // Firebase Auth Listener
   useEffect(() => {
@@ -174,7 +200,32 @@ export default function App() {
     try {
       if (localProfile) {
         console.log('Syncing profile...');
-        const parsed = JSON.parse(localProfile);
+        let parsed = JSON.parse(localProfile);
+        
+        // Ensure images are compressed before syncing to cloud to avoid 1MB limit
+        try {
+          let needsUpdate = false;
+          if (parsed.signatureUrl?.startsWith('data:image/') && parsed.signatureUrl.length > 50000) {
+            parsed.signatureUrl = await compressImage(parsed.signatureUrl, 400, 200, 0.5);
+            needsUpdate = true;
+          }
+          if (parsed.stampUrl?.startsWith('data:image/') && parsed.stampUrl.length > 50000) {
+            parsed.stampUrl = await compressImage(parsed.stampUrl, 400, 400, 0.5);
+            needsUpdate = true;
+          }
+          if (parsed.appIconUrl?.startsWith('data:image/') && parsed.appIconUrl.length > 50000) {
+            parsed.appIconUrl = await compressImage(parsed.appIconUrl, 256, 256, 0.5);
+            needsUpdate = true;
+          }
+          
+          if (needsUpdate) {
+            localStorage.setItem('tech_dz_profile', JSON.stringify(parsed));
+            setProfile(parsed);
+          }
+        } catch (e) {
+          console.error('Error compressing profile images during sync:', e);
+        }
+        
         await setDoc(doc(db, 'users', userId), { ...parsed, id: userId }, { merge: true });
       }
 
@@ -455,12 +506,13 @@ export default function App() {
     if (client && profile) {
       try {
         await generateInvoicePDF(invoice, client, profile);
+        toast.success('PDF généré avec succès');
       } catch (error) {
         console.error('Error generating PDF:', error);
-        alert('Erreur lors de la génération du PDF.');
+        toast.error('Erreur lors de la génération du PDF.');
       }
     } else {
-      alert('Informations client ou technicien manquantes.');
+      toast.error('Informations client ou technicien manquantes.');
     }
   };
 
@@ -493,11 +545,20 @@ export default function App() {
 
   const handleLogin = async () => {
     try {
+      setAuthError(null);
       await loginWithGoogle();
       trackLogin('google');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login error:', error);
-      alert('Erreur lors de la connexion avec Google.');
+      if (error.code === 'auth/unauthorized-domain') {
+        setAuthError('unauthorized-domain');
+        toast.error("Domaine non autorisé. Veuillez l'ajouter dans la console Firebase.");
+      } else if (error.code === 'auth/configuration-not-found') {
+        setAuthError('configuration-not-found');
+        toast.error("Google Sign-In n'est pas activé dans la console Firebase.");
+      } else {
+        toast.error('Erreur lors de la connexion avec Google.');
+      }
     }
   };
 
@@ -634,17 +695,23 @@ export default function App() {
   };
 
   const handleDeleteExpense = async (id: string) => {
-    if (window.confirm('Voulez-vous vraiment supprimer cette dépense ?')) {
-      const updatedExpenses = expenses.filter(exp => exp.id !== id);
-      setExpenses(updatedExpenses);
-      if (user && firebase.db) {
-        try {
-          await deleteDoc(doc(firebase.db, 'users', user.uid, 'expenses', id));
-        } catch (err) {
-          handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/expenses/${id}`, firebase.auth);
+    openConfirm(
+      'Supprimer la dépense',
+      'Voulez-vous vraiment supprimer cette dépense ? Cette action est irréversible.',
+      async () => {
+        const updatedExpenses = expenses.filter(exp => exp.id !== id);
+        setExpenses(updatedExpenses);
+        localStorage.setItem('tech_dz_expenses', JSON.stringify(updatedExpenses));
+        if (user && firebase.db) {
+          try {
+            await deleteDoc(doc(firebase.db, 'users', user.uid, 'expenses', id));
+            toast.success('Dépense supprimée');
+          } catch (err) {
+            handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/expenses/${id}`, firebase.auth);
+          }
         }
       }
-    }
+    );
   };
 
   const handleSaveInvoice = async (invoiceData: any) => {
@@ -755,35 +822,47 @@ export default function App() {
   };
 
   const handleDeleteInvoice = async (invoice: Invoice) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette facture ?')) {
-      setInvoices(invoices.filter(i => i.id !== invoice.id));
-      if (user && firebase.db) {
-        try {
-          const { deleteDoc, doc } = await import('firebase/firestore');
-          await deleteDoc(doc(firebase.db, 'users', user.uid, 'invoices', invoice.id));
-        } catch (err) {
-          handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/invoices/${invoice.id}`, firebase.auth);
+    openConfirm(
+      'Supprimer la facture',
+      'Êtes-vous sûr de vouloir supprimer cette facture ? Cette action est irréversible.',
+      async () => {
+        setInvoices(invoices.filter(i => i.id !== invoice.id));
+        localStorage.setItem('tech_dz_invoices', JSON.stringify(invoices.filter(i => i.id !== invoice.id)));
+        if (user && firebase.db) {
+          try {
+            const { deleteDoc, doc } = await import('firebase/firestore');
+            await deleteDoc(doc(firebase.db, 'users', user.uid, 'invoices', invoice.id));
+            toast.success('Facture supprimée');
+          } catch (err) {
+            handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/invoices/${invoice.id}`, firebase.auth);
+          }
         }
       }
-    }
+    );
   };
 
   const handleDeleteClient = async (client: Client) => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer ce client ?')) {
-      setClients(clients.filter(c => c.id !== client.id));
-      if (user && firebase.db) {
-        try {
-          const { deleteDoc, doc } = await import('firebase/firestore');
-          await deleteDoc(doc(firebase.db, 'users', user.uid, 'clients', client.id));
-        } catch (err) {
-          handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/clients/${client.id}`, firebase.auth);
+    openConfirm(
+      'Supprimer le client',
+      'Êtes-vous sûr de vouloir supprimer ce client ? Toutes ses factures resteront mais ne seront plus liées à un client actif.',
+      async () => {
+        setClients(clients.filter(c => c.id !== client.id));
+        localStorage.setItem('tech_dz_clients', JSON.stringify(clients.filter(c => c.id !== client.id)));
+        if (user && firebase.db) {
+          try {
+            const { deleteDoc, doc } = await import('firebase/firestore');
+            await deleteDoc(doc(firebase.db, 'users', user.uid, 'clients', client.id));
+            toast.success('Client supprimé');
+          } catch (err) {
+            handleFirestoreError(err, OperationType.DELETE, `users/${user.uid}/clients/${client.id}`, firebase.auth);
+          }
         }
       }
-    }
+    );
   };
 
   const handleExportData = () => {
-    const data = { profile, invoices, clients };
+    const data = { profile, invoices, clients, expenses };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -793,29 +872,59 @@ export default function App() {
   };
 
   const handleClearData = () => {
-    if (window.confirm('ATTENTION: Cela supprimera TOUTES vos données. Continuer ?')) {
-      localStorage.clear();
-      window.location.reload();
-    }
+    openConfirm(
+      'Réinitialiser l\'application',
+      'ATTENTION: Cela supprimera TOUTES vos données locales. Cette action est irréversible.',
+      () => {
+        localStorage.clear();
+        window.location.reload();
+      }
+    );
   };
 
-  const handleImportData = (jsonString: string) => {
+  const handleImportData = async (jsonString: string) => {
     try {
       const data = JSON.parse(jsonString);
       if (data.profile && data.invoices && data.clients) {
-        if (window.confirm('Voulez-vous vraiment importer ces données ? Cela écrasera vos données actuelles.')) {
-          setProfile(data.profile);
-          setInvoices(data.invoices);
-          setClients(data.clients);
-          alert('Données importées avec succès !');
-          window.location.reload();
-        }
+        openConfirm(
+          'Importer les données',
+          'Voulez-vous vraiment importer ces données ? Cela écrasera vos données actuelles.',
+          async () => {
+            let importedProfile = data.profile;
+            
+            // Compress images in imported profile to avoid Firestore limits
+            try {
+              if (importedProfile.signatureUrl?.startsWith('data:image/') && importedProfile.signatureUrl.length > 50000) {
+                importedProfile.signatureUrl = await compressImage(importedProfile.signatureUrl, 400, 200, 0.5);
+              }
+              if (importedProfile.stampUrl?.startsWith('data:image/') && importedProfile.stampUrl.length > 50000) {
+                importedProfile.stampUrl = await compressImage(importedProfile.stampUrl, 400, 400, 0.5);
+              }
+              if (importedProfile.appIconUrl?.startsWith('data:image/') && importedProfile.appIconUrl.length > 50000) {
+                importedProfile.appIconUrl = await compressImage(importedProfile.appIconUrl, 256, 256, 0.5);
+              }
+            } catch (e) {
+              console.error('Error compressing profile images during import:', e);
+            }
+
+            localStorage.setItem('tech_dz_profile', JSON.stringify(importedProfile));
+            localStorage.setItem('tech_dz_invoices', JSON.stringify(data.invoices));
+            localStorage.setItem('tech_dz_clients', JSON.stringify(data.clients));
+            if (data.expenses) {
+              localStorage.setItem('tech_dz_expenses', JSON.stringify(data.expenses));
+            }
+            
+            toast.success('Données importées avec succès !');
+            setTimeout(() => window.location.reload(), 1000);
+          },
+          'primary'
+        );
       } else {
-        alert('Format de fichier invalide.');
+        toast.error('Format de fichier invalide.');
       }
     } catch (error) {
       console.error('Import error:', error);
-      alert('Erreur lors de l\'importation du fichier.');
+      toast.error('Erreur lors de l\'importation du fichier.');
     }
   };
 
@@ -848,6 +957,158 @@ export default function App() {
         isSyncing={isSyncing}
         onLogout={handleLogout}
       >
+        {isCloudConnected === false && (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-800 shadow-sm">
+            <div className="flex items-start space-x-4">
+              <div className="rounded-full bg-amber-100 p-2 mt-1">
+                <CloudOff className="h-5 w-5 text-amber-600" />
+              </div>
+              <div className="flex-1 space-y-3">
+                <div>
+                  <p className="text-lg font-bold">Synchronisation Cloud Bloquée</p>
+                  <p className="text-sm opacity-90">
+                    Votre projet Firebase refuse la connexion. Pour activer la sauvegarde Cloud, vous devez autoriser ce domaine dans votre console Firebase.
+                  </p>
+                </div>
+                
+                <div className="rounded-xl bg-white/50 p-3 border border-amber-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-1">Domaine à autoriser :</p>
+                    <code className="text-xs font-mono break-all bg-white px-2 py-1 rounded border border-amber-200 block">
+                      {window.location.hostname}
+                    </code>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 w-8 p-0"
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.hostname);
+                      toast.success("Domaine copié !");
+                    }}
+                  >
+                    <span className="sr-only">Copier</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    className="bg-white border-amber-200 text-amber-700 hover:bg-amber-100"
+                    onClick={() => window.open('https://console.firebase.google.com/project/_/authentication/settings', '_blank')}
+                  >
+                    Ouvrir la Console Firebase
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="text-amber-600 underline"
+                    onClick={() => window.location.reload()}
+                  >
+                    Réessayer la connexion
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {authError === 'unauthorized-domain' && (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-800 shadow-sm">
+            <div className="flex items-start space-x-4">
+              <div className="rounded-full bg-amber-100 p-2 mt-1">
+                <CloudOff className="h-5 w-5 text-amber-600" />
+              </div>
+              <div className="flex-1 space-y-3">
+                <div>
+                  <p className="text-lg font-bold">Domaine non autorisé</p>
+                  <p className="text-sm opacity-90">
+                    Firebase bloque la connexion car ce domaine n'est pas encore autorisé dans votre console.
+                  </p>
+                </div>
+                
+                <div className="rounded-xl bg-white/50 p-3 border border-amber-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-1">Domaine à copier :</p>
+                    <code className="text-xs font-mono break-all bg-white px-2 py-1 rounded border border-amber-200 block">
+                      {window.location.hostname}
+                    </code>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-8 w-8 p-0"
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.hostname);
+                      toast.success("Domaine copié !");
+                    }}
+                  >
+                    <span className="sr-only">Copier</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-copy"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap gap-3">
+                  <Button 
+                    size="sm" 
+                    variant="primary" 
+                    className="bg-amber-600 hover:bg-amber-700 text-white"
+                    onClick={() => window.open('https://console.firebase.google.com/project/_/authentication/settings', '_blank')}
+                  >
+                    Ouvrir Authorized Domains
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    className="text-amber-600 underline"
+                    onClick={() => window.location.reload()}
+                  >
+                    Réessayer
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {authError === 'configuration-not-found' && (
+          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-800 shadow-sm">
+            <div className="flex items-start space-x-4">
+              <div className="rounded-full bg-red-100 p-2 mt-1">
+                <Bell className="h-5 w-5 text-red-600" />
+              </div>
+              <div className="flex-1 space-y-3">
+                <div>
+                  <p className="text-lg font-bold">Connexion Google non activée</p>
+                  <p className="text-sm opacity-90">
+                    Vous devez activer la méthode de connexion "Google" dans votre console Firebase pour permettre l'authentification.
+                  </p>
+                </div>
+                
+                <div className="rounded-xl bg-white/50 p-4 border border-red-100 space-y-2">
+                  <p className="text-xs font-bold">Étapes à suivre :</p>
+                  <ol className="list-decimal list-inside text-xs space-y-1 opacity-80">
+                    <li>Allez dans <b>Authentication</b> &gt; <b>Sign-in method</b></li>
+                    <li>Cliquez sur <b>Add new provider</b></li>
+                    <li>Sélectionnez <b>Google</b> et cliquez sur <b>Enable</b></li>
+                    <li>Choisissez un e-mail de support et cliquez sur <b>Save</b></li>
+                  </ol>
+                </div>
+
+                <Button 
+                  size="sm" 
+                  variant="primary" 
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  onClick={() => window.open('https://console.firebase.google.com/project/_/authentication/providers', '_blank')}
+                >
+                  Aller activer Google maintenant
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
         {activeTab === 'dashboard' && profile && (
           <Dashboard 
             stats={stats} 
@@ -919,25 +1180,35 @@ export default function App() {
             onSave={handleSaveProfile}
             onUpdateSignature={() => setIsSignatureModalOpen(true)}
             onDeleteSignature={() => {
-              if (window.confirm('Supprimer la signature ?')) {
-                const updatedProfile = { ...profile, signatureUrl: undefined };
-                setProfile(updatedProfile as UserProfile);
-                if (user && firebase.db) {
-                  setDoc(doc(firebase.db, 'users', user.uid), updatedProfile)
-                    .catch(err => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, firebase.auth));
+              openConfirm(
+                'Supprimer la signature',
+                'Voulez-vous vraiment supprimer votre signature ?',
+                async () => {
+                  const updatedProfile = { ...profile, signatureUrl: undefined };
+                  setProfile(updatedProfile as UserProfile);
+                  if (user && firebase.db) {
+                    setDoc(doc(firebase.db, 'users', user.uid), updatedProfile)
+                      .then(() => toast.success('Signature supprimée'))
+                      .catch(err => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, firebase.auth));
+                  }
                 }
-              }
+              );
             }}
             onUpdateStamp={() => setIsStampModalOpen(true)}
             onDeleteStamp={() => {
-              if (window.confirm('Supprimer le cachet ?')) {
-                const updatedProfile = { ...profile, stampUrl: undefined };
-                setProfile(updatedProfile as UserProfile);
-                if (user && firebase.db) {
-                  setDoc(doc(firebase.db, 'users', user.uid), updatedProfile)
-                    .catch(err => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, firebase.auth));
+              openConfirm(
+                'Supprimer le cachet',
+                'Voulez-vous vraiment supprimer votre cachet professionnel ?',
+                async () => {
+                  const updatedProfile = { ...profile, stampUrl: undefined };
+                  setProfile(updatedProfile as UserProfile);
+                  if (user && firebase.db) {
+                    setDoc(doc(firebase.db, 'users', user.uid), updatedProfile)
+                      .then(() => toast.success('Cachet supprimé'))
+                      .catch(err => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`, firebase.auth));
+                  }
                 }
-              }
+              );
             }}
             onLogin={handleLogin}
             onLogout={handleLogout}
@@ -1070,6 +1341,15 @@ export default function App() {
             onCancel={() => setIsStampModalOpen(false)}
           />
         </Modal>
+
+        <ConfirmModal
+          isOpen={confirmModal.isOpen}
+          onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+          onConfirm={confirmModal.onConfirm}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          variant={confirmModal.variant}
+        />
       </Layout>
     </ErrorBoundary>
   );

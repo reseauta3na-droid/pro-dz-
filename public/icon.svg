@@ -1,5 +1,21 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="512" height="512" rx="128" fill="#059669"/>
-  <path d="M150 150H362V200H281V362H231V200H150V150Z" fill="white"/>
-  <path d="M281 250H362V300H281V250Z" fill="white" opacity="0.8"/>
+  <rect width="512" height="512" rx="128" fill="white"/>
+  
+  <!-- Hexagon Cluster -->
+  <g transform="translate(256, 220)">
+    <!-- Bottom Left Hexagon (Green) -->
+    <path d="M-80 46.188L-40 69.282V115.47L-80 138.564L-120 115.47V69.282L-80 46.188Z" fill="#059669"/>
+    
+    <!-- Bottom Right Hexagon (Green) -->
+    <path d="M80 46.188L120 69.282V115.47L80 138.564L40 115.47V69.282L80 46.188Z" fill="#059669"/>
+    
+    <!-- Top Middle Hexagon (Orange) -->
+    <path d="M0 -92.376L40 -69.282V-23.094L0 0L-40 -23.094V-69.282L0 -92.376Z" fill="#F27D26"/>
+    
+    <!-- "DZ" Text -->
+    <text x="0" y="-38" font-family="Arial, sans-serif" font-size="24" font-weight="900" fill="white" text-anchor="middle">DZ</text>
+  </g>
+  
+  <!-- "Tech Pro" Text -->
+  <text x="256" y="420" font-family="Arial, sans-serif" font-size="48" font-weight="900" fill="#064E3B" text-anchor="middle">Tech Pro</text>
 </svg>

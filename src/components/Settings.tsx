@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { Shield, Lock, Bell, Cloud, Database, Trash2, Save, Key, Image as ImageIcon, Sparkles, Loader2, Download as DownloadIcon } from 'lucide-react';
+import { toast } from 'sonner';
 import { Card } from './ui/Card';
 import { Input } from './ui/Input';
 import { Button } from './ui/Button';
@@ -68,7 +69,7 @@ export const Settings: React.FC<SettingsProps> = ({
       }
     } catch (error) {
       console.error("Error generating icon:", error);
-      alert("Erreur lors de la génération de l'icône. Veuillez réessayer.");
+      toast.error("Erreur lors de la génération de l'icône. Veuillez réessayer.");
     } finally {
       setIsGeneratingIcon(false);
     }
@@ -122,12 +123,13 @@ export const Settings: React.FC<SettingsProps> = ({
 
           <div className="space-y-6">
             <div className="flex items-center space-x-4">
-              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-2 border-zinc-100 bg-zinc-50">
-                {appIconUrl ? (
-                  <img src={appIconUrl} alt="App Icon" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <ImageIcon className="h-8 w-8 text-zinc-300" />
-                )}
+              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-2 border-zinc-100 bg-white">
+                <img 
+                  src={appIconUrl || "/icon.svg"} 
+                  alt="App Icon" 
+                  className="h-full w-full object-cover" 
+                  referrerPolicy="no-referrer" 
+                />
               </div>
               <div className="flex-1">
                 <h4 className="font-bold text-zinc-900">Icône de l'application</h4>

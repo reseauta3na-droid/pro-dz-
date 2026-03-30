@@ -49,9 +49,9 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onNext, onLogin }) => {
           <motion.div 
             initial={{ scale: 0.8 }}
             animate={{ scale: 1 }}
-            className="mx-auto flex h-24 w-24 items-center justify-center rounded-[2.5rem] bg-emerald-600 text-white shadow-2xl shadow-emerald-200"
+            className="mx-auto flex h-24 w-24 items-center justify-center overflow-hidden rounded-[2.5rem] bg-white shadow-2xl shadow-emerald-200"
           >
-            <FileText className="h-12 w-12" />
+            <img src="/icon.svg" alt="Logo" className="h-full w-full object-cover" />
           </motion.div>
           <h1 className="text-4xl font-black tracking-tight sm:text-5xl">Bienvenue sur Tech DZ Pro</h1>
           <p className="mx-auto max-w-lg text-lg text-zinc-500">

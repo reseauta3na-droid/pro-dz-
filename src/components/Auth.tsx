@@ -18,8 +18,8 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, isLoading }) => {
       >
         <div className="flex flex-col items-center space-y-6">
           <div className="relative">
-            <div className="flex h-24 w-24 items-center justify-center rounded-[2.5rem] bg-emerald-600 text-white shadow-2xl shadow-emerald-200">
-              <FileText className="h-12 w-12" />
+            <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-[2.5rem] bg-white shadow-2xl shadow-emerald-200">
+              <img src="/icon.svg" alt="Logo" className="h-full w-full object-cover" />
             </div>
             <div className="absolute -bottom-2 -right-2 rounded-full bg-white p-1.5 shadow-lg">
               <ShieldCheck className="h-6 w-6 text-emerald-600" />
