@@ -1,0 +1,32 @@
+# CONTEXTE TECHNIQUE POUR AGENT IA (ANDROID STUDIO)
+# PROJET : TECH DZ PRO
+
+## 1. ARCHITECTURE
+- Framework : React 19 + Vite + Capacitor 6.
+- Langage : TypeScript.
+- Backend : Firebase Firestore & Auth.
+- Bridge Mobile : Capacitor (le code web est servi dans une WebView native).
+
+## 2. CONFIGURATION FIREBASE
+- Le fichier 'firebase-applet-config.json' contient les clés API.
+- L'authentification utilise Google Sign-In.
+- Firestore est configuré en mode 'Long Polling' pour la stabilité mobile.
+
+## 3. LOGIQUE MÉTIER CRITIQUE
+- Calculs : 1 semaine = 6 jours. IFU = 0.5%.
+- PDF : Généré via jsPDF + html2canvas. Supporte Signature et Cachet en Base64.
+- Offline : Persistance via LocalStorage avant synchronisation Firestore.
+
+## 4. PERMISSIONS ANDROID REQUISES
+- INTERNET (pour Firebase et Sync).
+- READ_EXTERNAL_STORAGE / WRITE_EXTERNAL_STORAGE (pour sauvegarder les factures PDF).
+
+## 5. INSTRUCTIONS DE BUILD
+1. Exécuter 'npm install' pour les dépendances.
+2. Exécuter 'npm run build' pour générer le dossier 'dist'.
+3. Exécuter 'npx cap sync android' pour mettre à jour le dossier natif.
+4. Dans Android Studio, compiler via Gradle.
+
+## 6. NOTES DE SÉCURITÉ
+- L'app possède un écran de verrouillage par code PIN (4 chiffres) géré dans 'src/components/PinLock.tsx'.
+- Les règles Firestore sont basées sur l'UID de l'utilisateur.
