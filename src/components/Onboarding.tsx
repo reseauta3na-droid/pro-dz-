@@ -53,7 +53,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({ onNext, onLogin }) => {
           >
             <img src="/icon.svg" alt="Logo" className="h-full w-full object-cover" />
           </motion.div>
-          <h1 className="text-4xl font-black tracking-tight sm:text-5xl">Bienvenue sur Tech DZ Pro</h1>
+          <h1 className="text-4xl font-black tracking-tight sm:text-5xl">Bienvenue sur DZ Tech</h1>
           <p className="mx-auto max-w-lg text-lg text-zinc-500">
             L'outil tout-en-un conçu spécifiquement pour les techniciens et freelances en Algérie.
           </p>

@@ -312,7 +312,7 @@ export const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                 <QRCodeSVG value={qrValue} size={80} level="L" />
                 <div className="text-[10px] text-zinc-400 font-mono leading-tight">
                   <p>VÉRIFICATION NUMÉRIQUE</p>
-                  <p>TECH DZ PRO v1.0</p>
+                  <p>DZ TECH v1.0</p>
                   <p>ID: {invoice.id.substring(0, 8)}</p>
                 </div>
               </div>

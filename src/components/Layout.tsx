@@ -46,7 +46,7 @@ export const Layout: React.FC<LayoutProps> = ({
               referrerPolicy="no-referrer" 
             />
           </div>
-          <span className="text-xl font-black tracking-tight text-zinc-900">Tech DZ Pro</span>
+          <span className="text-xl font-black tracking-tight text-zinc-900">DZ Tech</span>
         </div>
 
         <div className="mb-6 px-4">
@@ -126,7 +126,7 @@ export const Layout: React.FC<LayoutProps> = ({
                 />
               </div>
               <div className="flex flex-col">
-                <span className="text-sm font-black tracking-tight">Tech DZ Pro</span>
+                <span className="text-sm font-black tracking-tight">DZ Tech</span>
                 <div className="flex items-center space-x-1">
                   {isOnline ? (
                     <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />

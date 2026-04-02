@@ -26,7 +26,7 @@ export const Auth: React.FC<AuthProps> = ({ onLogin, isLoading }) => {
             </div>
           </div>
           <div className="space-y-2">
-            <h1 className="text-4xl font-black tracking-tighter text-zinc-900">Tech DZ Pro</h1>
+            <h1 className="text-4xl font-black tracking-tighter text-zinc-900">DZ Tech</h1>
             <p className="text-lg font-bold text-zinc-500">L'outil pro pour les techniciens freelances.</p>
           </div>
         </div>

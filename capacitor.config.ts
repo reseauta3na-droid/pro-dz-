@@ -1,8 +1,8 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.techdzpro.app',
-  appName: 'Tech DZ Pro',
+  appId: 'com.dztech.app',
+  appName: 'DZ Tech',
   webDir: 'dist',
   bundledWebRuntime: false,
   server: {

@@ -933,7 +933,7 @@ export default function App() {
       <div className="flex h-screen items-center justify-center bg-zinc-50">
         <div className="text-center space-y-4">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-emerald-600 border-t-transparent mx-auto"></div>
-          <p className="text-sm font-medium text-zinc-500">Chargement de Tech DZ Pro...</p>
+          <p className="text-sm font-medium text-zinc-500">Chargement de DZ Tech...</p>
         </div>
       </div>
     );

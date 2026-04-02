@@ -63,7 +63,7 @@ export const Settings: React.FC<SettingsProps> = ({
   const handleGenerateIcon = async () => {
     setIsGeneratingIcon(true);
     try {
-      const iconUrl = await generateAppIcon("A professional, modern, minimalist app icon for 'TECH DZ PRO'. The icon should feature a stylized emerald green 'T' and 'D' integrated with a technical circuit or gear element. The background should be a clean charcoal gray or white. High resolution, flat design, vector style.");
+      const iconUrl = await generateAppIcon("A professional, modern, minimalist app icon for 'DZ TECH'. The icon should feature a stylized emerald green 'D' and 'Z' integrated with a technical circuit or gear element. The background should be a clean charcoal gray or white. High resolution, flat design, vector style.");
       if (iconUrl) {
         onUpdateIcon(iconUrl);
       }
@@ -133,7 +133,7 @@ export const Settings: React.FC<SettingsProps> = ({
               </div>
               <div className="flex-1">
                 <h4 className="font-bold text-zinc-900">Icône de l'application</h4>
-                <p className="text-xs text-zinc-500">Personnalisez l'identité visuelle de Tech DZ Pro.</p>
+                <p className="text-xs text-zinc-500">Personnalisez l'identité visuelle de DZ Tech.</p>
               </div>
             </div>
 
@@ -301,7 +301,7 @@ export const Settings: React.FC<SettingsProps> = ({
               </div>
               <h4 className="text-lg font-bold text-zinc-900">Installer l'application</h4>
               <p className="mx-auto max-w-xs text-zinc-500">
-                Installez Tech DZ Pro sur votre téléphone pour un accès rapide et hors-ligne.
+                Installez DZ Tech sur votre téléphone pour un accès rapide et hors-ligne.
               </p>
               <Button 
                 variant="primary" 

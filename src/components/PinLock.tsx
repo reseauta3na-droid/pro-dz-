@@ -46,7 +46,7 @@ export const PinLock: React.FC<PinLockProps> = ({ correctPin, onSuccess }) => {
           <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-600 text-white shadow-2xl shadow-emerald-900/50">
             <Lock className="h-10 w-10" />
           </div>
-          <h1 className="text-2xl font-black tracking-tight">Tech DZ Pro</h1>
+          <h1 className="text-2xl font-black tracking-tight">DZ Tech</h1>
           <p className="text-zinc-500">Entrez votre code PIN pour déverrouiller.</p>
         </div>
 
