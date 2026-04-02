@@ -152,15 +152,16 @@ export async function testConnection() {
     return true;
   } catch (error: any) {
     const projectId = cachedConfig?.projectId || 'votre projet';
-    if (error.message?.includes('the client is offline')) {
-      console.error(`🚨 Erreur Firestore : Le client est hors-ligne pour le projet "${projectId}".`);
+    if (error.message?.includes('the client is offline') || error.code === 'permission-denied' || error.message?.includes('not found')) {
+      console.error(`🚨 Erreur Firestore : Le client est hors-ligne ou configuration invalide pour le projet "${projectId}".`);
       console.error("Ceci est généralement dû à l'une de ces 3 raisons :");
       console.error("1. La clé API est restreinte à 'Android' uniquement dans Google Cloud Console. Elle doit autoriser les requêtes Web.");
       console.error(`2. Le domaine '${window.location.hostname}' n'est pas autorisé dans Firebase Auth > Settings > Authorized domains.`);
       console.error(`3. La base de données Firestore n'a pas été créée (ou n'est pas en mode test/production) dans le projet '${projectId}'.`);
+      return false;
     } else {
       console.error("Firestore connection test failed:", error);
+      return false;
     }
-    return false;
   }
 }

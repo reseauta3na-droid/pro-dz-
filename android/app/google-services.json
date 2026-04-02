@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "720564404380",
-    "project_id": "tech-dz-pro-fd370",
-    "storage_bucket": "tech-dz-pro-fd370.firebasestorage.app"
+    "project_number": "796083593420",
+    "project_id": "dz-tech-app-2026",
+    "storage_bucket": "dz-tech-app-2026.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:720564404380:android:796fb03a4c0485e0f3ed59",
+        "mobilesdk_app_id": "1:796083593420:android:2db85858760bdb61666269",
         "android_client_info": {
-          "package_name": "com.techdzpro.app"
+          "package_name": "com.dztech.app"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyC4X8P54x5jzqIRwj4RliHOLBLwm8TQ0GQ"
+          "current_key": "AIzaSyDy_PgnOZMiDifEIH0OytW7czu7YAuZksk"
         }
       ],
       "services": {

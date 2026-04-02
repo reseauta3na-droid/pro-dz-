@@ -1,11 +1,12 @@
 {
-  "projectId": "tech-dz-pro-fd370",
-  "appId": "",
-  "apiKey": "AIzaSyC4X8P54x5jzqIRwj4RliHOLBLwm8TQ0GQ",
-  "authDomain": "tech-dz-pro-fd370.firebaseapp.com",
+  "projectId": "dz-tech-app-2026",
+  "appId": "1:796083593420:android:2db85858760bdb61666269",
+  "apiKey": "AIzaSyDy_PgnOZMiDifEIH0OytW7czu7YAuZksk",
+  "authDomain": "dz-tech-app-2026.firebaseapp.com",
   "firestoreDatabaseId": "(default)",
-  "storageBucket": "tech-dz-pro-fd370.firebasestorage.app",
-  "messagingSenderId": "720564404380",
-  "vapidKey": "BGgeKl25AF0filLzlcqReCegIjnRd-zM96g-OriwSHyxZxh1UHaNUiZMxQNIVRPp_9mqMDCVGTFNR1gZvnocivM",
+  "storageBucket": "dz-tech-app-2026.firebasestorage.app",
+  "messagingSenderId": "796083593420",
+  "vapidKey": "",
   "measurementId": ""
 }
+

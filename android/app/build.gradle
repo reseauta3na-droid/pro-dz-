@@ -4,10 +4,10 @@ plugins {
 }
 
 android {
-    namespace "com.techdzpro.app"
+    namespace "com.dztech.app"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.techdzpro.app"
+        applicationId "com.dztech.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
